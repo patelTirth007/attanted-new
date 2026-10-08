@@ -1,0 +1,9 @@
+{
+  "name": "Smart College Attendance",
+  "description": "Online College Attendance Management System with Face Recognition, GPS Geofencing, and Lecture-wise Attendance tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

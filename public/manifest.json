@@ -1,0 +1,15 @@
+{
+  "short_name": "Smart Attendance",
+  "name": "Smart College Attendance Management System",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231E40AF'><path d='M12 3L1 9l11 6 9-4.91V17h2V9L12 3z'/></svg>",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1E40AF",
+  "display": "standalone"
+}
