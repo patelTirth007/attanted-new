@@ -1,9 +1,9 @@
 {
   "name": "Smart College Attendance",
-  "description": "Online College Attendance Management System with Face Recognition, GPS Geofencing, and Lecture-wise Attendance tracking.",
+  "description": "Online College Attendance Management System with Semester-Wise Separate Lecture & Attendance Management, Faculty 100-meter dynamic QR code generator, student QR scanner with GPS handheld proximity verification, single email ID verification per subject, and automated Gmail notifications.",
   "requestFramePermissions": [
-    "camera",
-    "geolocation"
+    "geolocation",
+    "camera"
   ],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

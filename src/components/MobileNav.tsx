@@ -8,7 +8,8 @@ import {
   Radio,
   Calendar,
   Users,
-  Settings
+  MapPin,
+  Mail
 } from 'lucide-react';
 
 interface MobileNavProps {
@@ -21,6 +22,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ role, currentRoute, onNavi
   const studentLinks = [
     { id: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
+    { id: '/student/notifications', label: 'Gmail', icon: Mail },
     { id: '/student/history', label: 'History', icon: History },
     { id: '/student/profile', label: 'Profile', icon: User }
   ];
@@ -29,8 +31,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({ role, currentRoute, onNavi
     { id: '/faculty/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: '/faculty/attendance', label: 'Live', icon: Radio },
     { id: '/faculty/lectures', label: 'Lectures', icon: Calendar },
+    { id: '/faculty/notifications', label: 'Gmail', icon: Mail },
     { id: '/faculty/students', label: 'Students', icon: Users },
-    { id: '/faculty/settings', label: 'Geofence', icon: Settings }
+    { id: '/faculty/settings', label: 'Location', icon: MapPin }
   ];
 
   const links = role === 'STUDENT' ? studentLinks : facultyLinks;
@@ -45,7 +48,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ role, currentRoute, onNavi
             <button
               key={link.id}
               onClick={() => onNavigate(link.id)}
-              className={`flex flex-col items-center py-1 px-2 rounded-xl transition ${
+              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${
                 isActive ? 'text-blue-700 font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >

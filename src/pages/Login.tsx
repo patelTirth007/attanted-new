@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { User } from '../types';
-import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
+import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, UserCheck, KeyRound } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
   onNavigateToRegister: () => void;
+  onNavigateToFacultyRegister?: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToRegister }) => {
+export const Login: React.FC<LoginProps> = ({ 
+  onLoginSuccess, 
+  onNavigateToRegister,
+  onNavigateToFacultyRegister
+}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,18 +24,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToRegist
 
     const user = db.getUserByEmail(email);
     if (!user) {
-      setError('No registered account found with this email.');
+      setError('No registered account found with this email. Please verify credentials or register.');
       return;
     }
 
     onLoginSuccess(user);
-  };
-
-  const handleDemoLogin = (demoEmail: string) => {
-    const user = db.getUserByEmail(demoEmail);
-    if (user) {
-      onLoginSuccess(user);
-    }
   };
 
   return (
@@ -43,14 +41,53 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToRegist
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Smart College Attendance</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Biometric Face Recognition • GPS 2 KM Geofence • Lecture Tracking
+            Dynamic Handheld 100m QR Code • Subject-Wise Attendance • Instant Gmail Notifications
           </p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 sm:p-8">
-          <h3 className="text-lg font-bold text-slate-900 mb-1">Sign In</h3>
-          <p className="text-xs text-slate-500 mb-6">Enter your college credentials to access your portal</p>
+          <h3 className="text-lg font-bold text-slate-900 mb-1">Official Portal Sign In</h3>
+          <p className="text-xs text-slate-500 mb-6">Enter your registered college credentials</p>
+
+          {/* Quick 1-Click Demo Login Selector */}
+          <div className="mb-6 p-3 bg-blue-50/70 border border-blue-200 rounded-xl">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block mb-2">
+              ⚡ Quick Demo 1-Click Website Access:
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('faculty@college.edu');
+                  setPassword('demo123');
+                  const u = db.getUserByEmail('faculty@college.edu');
+                  if (u) onLoginSuccess(u);
+                }}
+                className="px-2.5 py-1.5 bg-white border border-blue-300 hover:border-blue-600 rounded-lg text-left transition text-[11px] shadow-sm"
+              >
+                <div className="font-bold text-blue-900 flex items-center gap-1">
+                  👨‍🏫 Faculty
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">Dr. Rajesh Sharma</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('student@college.edu');
+                  setPassword('demo123');
+                  const u = db.getUserByEmail('student@college.edu');
+                  if (u) onLoginSuccess(u);
+                }}
+                className="px-2.5 py-1.5 bg-white border border-emerald-300 hover:border-emerald-600 rounded-lg text-left transition text-[11px] shadow-sm"
+              >
+                <div className="font-bold text-emerald-900 flex items-center gap-1">
+                  🎓 Student
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">Aarav Patel (21IT001)</div>
+              </button>
+            </div>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
@@ -66,7 +103,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToRegist
                 <input
                   type="email"
                   required
-                  placeholder="e.g. student@college.edu"
+                  placeholder="e.g. faculty@college.edu or student enrollment email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition"
@@ -98,46 +135,31 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToRegist
             </button>
           </form>
 
-          {/* Demo quick logins */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2 text-center">
-              One-Click Demonstration Logins
-            </span>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Registration Options */}
+          <div className="mt-6 pt-5 border-t border-slate-100 space-y-2.5 text-center">
+            <div>
               <button
                 type="button"
-                onClick={() => handleDemoLogin('student@college.edu')}
-                className="p-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-left transition"
+                onClick={onNavigateToRegister}
+                className="text-xs font-bold text-blue-700 hover:text-blue-900 transition flex items-center justify-center gap-1 mx-auto"
               >
-                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800">
-                  <UserCheck className="w-3.5 h-3.5" />
-                  Student Demo
-                </div>
-                <div className="text-[10px] text-blue-600 truncate">Tirth Patel (23IT001)</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('faculty@college.edu')}
-                className="p-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl text-left transition"
-              >
-                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-800">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Faculty Demo
-                </div>
-                <div className="text-[10px] text-purple-600 truncate">Dr. Rajesh Sharma</div>
+                <UserCheck className="w-3.5 h-3.5" />
+                New Student? Register Real Student ID & Email →
               </button>
             </div>
-          </div>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={onNavigateToRegister}
-              className="text-xs font-semibold text-blue-700 hover:text-blue-900 transition"
-            >
-              New Student? Register with Biometric Face ID →
-            </button>
+            {onNavigateToFacultyRegister && (
+              <div>
+                <button
+                  type="button"
+                  onClick={onNavigateToFacultyRegister}
+                  className="text-xs font-semibold text-slate-500 hover:text-purple-700 transition flex items-center justify-center gap-1 mx-auto"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  New Faculty / Staff? Register Faculty Account →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

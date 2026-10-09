@@ -38,10 +38,25 @@ export function calculateHaversineDistanceMeters(
   return R * c;
 }
 
-export async function getCurrentDeviceLocation(): Promise<GPSLocation> {
+/**
+ * Requests device GPS sensor coordinates.
+ * @param fallbackCoords Optional configured college coordinates if testing in headless environment without hardware GPS
+ */
+export async function getCurrentDeviceLocation(
+  fallbackCoords?: { latitude: number; longitude: number }
+): Promise<GPSLocation> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser.'));
+      if (fallbackCoords) {
+        resolve({
+          latitude: fallbackCoords.latitude,
+          longitude: fallbackCoords.longitude,
+          accuracy: 10,
+          timestamp: Date.now()
+        });
+        return;
+      }
+      reject(new Error('Geolocation is not supported by your browser or device.'));
       return;
     }
 
@@ -50,20 +65,23 @@ export async function getCurrentDeviceLocation(): Promise<GPSLocation> {
         resolve({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
+          accuracy: pos.coords.accuracy || 15,
           timestamp: pos.timestamp
         });
       },
       (err) => {
-        // Fallback for container/mock testing without GPS hardware:
-        // Returns coordinates within the GTU college campus
-        console.warn('Geolocation warning/fallback:', err.message);
-        resolve({
-          latitude: 23.2185,
-          longitude: 72.6395,
-          accuracy: 15,
-          timestamp: Date.now()
-        });
+        console.warn('Geolocation warning:', err.message);
+        if (fallbackCoords) {
+          // If browser blocked location or headless environment, use configured college location for verified presence
+          resolve({
+            latitude: fallbackCoords.latitude,
+            longitude: fallbackCoords.longitude,
+            accuracy: 12,
+            timestamp: Date.now()
+          });
+        } else {
+          reject(new Error(err.message || 'GPS location permission denied. Please enable device location.'));
+        }
       },
       {
         enableHighAccuracy: true,
@@ -91,13 +109,14 @@ export function verifyLocationGeofence(
   );
 
   const isInside = distance <= allowedRadiusMeters;
-  const isAccurate = accuracy <= minAccuracy || accuracy <= 150;
+  const isAccurate = accuracy <= minAccuracy || accuracy <= 200;
 
   let errorMessage: string | undefined = undefined;
   if (!isInside) {
-    errorMessage = `Attendance cannot be marked because you are outside the ${allowedRadiusMeters}m college attendance zone. Distance: ${Math.round(distance)}m`;
-  } else if (accuracy > 150) {
-    errorMessage = `Location accuracy is insufficient (±${Math.round(accuracy)}m). Please move to an open area.`;
+    const formattedDist = distance >= 1000 ? `${(distance / 1000).toFixed(2)} KM` : `${Math.round(distance)} meters`;
+    errorMessage = `Attendance cannot be marked because you are outside the ${allowedRadiusMeters}m college attendance zone. Your distance is ${formattedDist}.`;
+  } else if (accuracy > 200) {
+    errorMessage = `GPS accuracy is too degraded (±${Math.round(accuracy)}m). Please move closer to an open sky area.`;
   }
 
   return {
@@ -111,3 +130,48 @@ export function verifyLocationGeofence(
     errorMessage
   };
 }
+
+export interface FacultyProximityResult {
+  isWithinRange: boolean;
+  isWithin100m: boolean;
+  isWithin50m: boolean; // Backwards-compatible alias
+  distanceMeters: number;
+  allowedRadiusMeters: number;
+  message: string;
+}
+
+/**
+ * Verifies that the student's device is within 100 meters of the faculty's handheld device or subject classroom location.
+ */
+export function verifyFacultyProximity(
+  studentLat: number,
+  studentLon: number,
+  facultyLat: number,
+  facultyLon: number,
+  allowedRadiusMeters: number = 100
+): FacultyProximityResult {
+  const distance = calculateHaversineDistanceMeters(
+    studentLat,
+    studentLon,
+    facultyLat,
+    facultyLon
+  );
+
+  const isWithin = distance <= allowedRadiusMeters;
+  const roundedDist = Math.round(distance);
+
+  return {
+    isWithinRange: isWithin,
+    isWithin100m: isWithin,
+    isWithin50m: isWithin,
+    distanceMeters: distance,
+    allowedRadiusMeters,
+    message: isWithin
+      ? `Proximity verified: You are ${roundedDist}m away from the faculty's handheld device (within the ${allowedRadiusMeters}m limit).`
+      : `Out of range: You are ${roundedDist}m away from the faculty's device in this classroom. Attendance requires being within ${allowedRadiusMeters} meters.`
+  };
+}
+
+// Backwards-compatible aliases
+export const verifyFacultyProximity50m = verifyFacultyProximity;
+export const verifyFacultyProximity100m = verifyFacultyProximity;

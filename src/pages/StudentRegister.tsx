@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { User, Student } from '../types';
-import { UserPlus, ArrowLeft, Camera, Check } from 'lucide-react';
+import { UserPlus, ArrowLeft, Mail, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 interface StudentRegisterProps {
   onSuccess: (user: User, student: Student) => void;
@@ -65,8 +65,8 @@ export const StudentRegister: React.FC<StudentRegisterProps> = ({ onSuccess, onB
             <UserPlus className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Student Enrollment</h3>
-            <p className="text-xs text-slate-500">Step 1 of 2: Create profile, followed by Face Enrollment</p>
+            <h3 className="text-xl font-bold text-slate-900">Student Account Registration</h3>
+            <p className="text-xs text-slate-500">Register with your official Email ID for Subject Attendance & Gmail alerts</p>
           </div>
         </div>
 
@@ -95,7 +95,7 @@ export const StudentRegister: React.FC<StudentRegisterProps> = ({ onSuccess, onB
               <input
                 type="text"
                 required
-                placeholder="e.g. Harshil Shah"
+                placeholder="e.g. Tirth Patel"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -105,15 +105,16 @@ export const StudentRegister: React.FC<StudentRegisterProps> = ({ onSuccess, onB
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">College Email *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Student Email ID (Gmail) *</label>
               <input
                 type="email"
                 required
-                placeholder="e.g. harshil@college.edu"
+                placeholder="e.g. student@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Attendance Gmail notifications will be sent here</span>
             </div>
 
             <div>
@@ -128,54 +129,58 @@ export const StudentRegister: React.FC<StudentRegisterProps> = ({ onSuccess, onB
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
               <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
-                <option value="Information Technology">IT</option>
-                <option value="Computer Science">CSE</option>
-                <option value="Electronics">ECE</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Computer Engineering">Computer Engineering</option>
+                <option value="Electronics & Comm">Electronics & Comm</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Semester</label>
-              <input
-                type="number"
-                min="1"
-                max="8"
+              <select
                 value={semester}
                 onChange={(e) => setSemester(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                  <option key={s} value={s}>Semester {s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Division</label>
+              <input
+                type="text"
+                placeholder="A / B / C"
+                value={division}
+                onChange={(e) => setDivision(e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 uppercase"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Roll Number</label>
+              <input
+                type="text"
+                placeholder="e.g. 24"
+                value={rollNumber}
+                onChange={(e) => setRollNumber(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Division & Roll</label>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Div A"
-                  value={division}
-                  onChange={(e) => setDivision(e.target.value.toUpperCase())}
-                  className="w-1/2 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-center uppercase"
-                />
-                <input
-                  type="text"
-                  placeholder="Roll 05"
-                  value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value)}
-                  className="w-1/2 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-center"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Password *</label>
               <input
@@ -201,13 +206,20 @@ export const StudentRegister: React.FC<StudentRegisterProps> = ({ onSuccess, onB
             </div>
           </div>
 
-          <div className="pt-4">
+          <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+            <span>
+              <strong>Security Protocol:</strong> Attendance is strictly bound to your registered email. Only 1 attendance active per email ID per subject session.
+            </span>
+          </div>
+
+          <div className="pt-2">
             <button
               type="submit"
               className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition"
             >
-              <Camera className="w-4 h-4" />
-              Continue to Face Biometrics Setup →
+              <CheckCircle2 className="w-4 h-4" />
+              Complete Registration & Access Portal
             </button>
           </div>
         </form>

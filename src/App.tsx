@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { User, Student, Faculty, Lecture } from './types';
+import { User, Student, Faculty, Lecture, GmailNotification } from './types';
 import { db } from './services/db';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
 import { Login } from './pages/Login';
 import { StudentRegister } from './pages/StudentRegister';
+import { FacultyRegister } from './pages/FacultyRegister';
 import { StudentDashboard } from './pages/StudentDashboard';
-import { StudentFaceEnrollment } from './pages/StudentFaceEnrollment';
 import { StudentAttendance } from './pages/StudentAttendance';
 import { StudentHistory } from './pages/StudentHistory';
 import { StudentProfile } from './pages/StudentProfile';
+import { GmailNotificationsView } from './pages/GmailNotificationsView';
 import { FacultyDashboard } from './pages/FacultyDashboard';
 import { FacultyLiveAttendance } from './pages/FacultyLiveAttendance';
 import { FacultyLectures } from './pages/FacultyLectures';
@@ -18,6 +19,7 @@ import { FacultyStudents } from './pages/FacultyStudents';
 import { FacultySubjects } from './pages/FacultySubjects';
 import { FacultyReports } from './pages/FacultyReports';
 import { FacultySettings } from './pages/FacultySettings';
+import { Mail, ExternalLink, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -28,6 +30,9 @@ export const App: React.FC = () => {
     return hash || '/login';
   });
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
+
+  // Global toast for real-time Gmail dispatch notifications
+  const [gmailToast, setGmailToast] = useState<GmailNotification | null>(null);
 
   // Sync route with window.location.hash
   const navigateTo = (route: string) => {
@@ -46,6 +51,18 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [currentRoute]);
 
+  // Listen for Gmail notification dispatch events
+  useEffect(() => {
+    const handleNotifEvent = (e: any) => {
+      if (e.detail) {
+        setGmailToast(e.detail);
+        setTimeout(() => setGmailToast(null), 7000);
+      }
+    };
+    window.addEventListener('sca_gmail_notification_dispatched', handleNotifEvent);
+    return () => window.removeEventListener('sca_gmail_notification_dispatched', handleNotifEvent);
+  }, []);
+
   // Restore session or default to Login
   useEffect(() => {
     const raw = localStorage.getItem('sca_active_session');
@@ -57,9 +74,7 @@ export const App: React.FC = () => {
           const s = db.getStudentByUserId(parsed.user.id);
           if (s) {
             setCurrentStudent(s);
-            if (!s.faceEnrollmentStatus) {
-              navigateTo('/student/face-enrollment');
-            } else if (currentRoute === '/login' || currentRoute === '/') {
+            if (currentRoute === '/login' || currentRoute === '/') {
               navigateTo('/student/dashboard');
             }
           }
@@ -85,11 +100,7 @@ export const App: React.FC = () => {
       if (student) {
         setCurrentStudent(student);
         localStorage.setItem('sca_active_session', JSON.stringify({ user, studentId: student.id }));
-        if (!student.faceEnrollmentStatus) {
-          navigateTo('/student/face-enrollment');
-        } else {
-          navigateTo('/student/dashboard');
-        }
+        navigateTo('/student/dashboard');
       }
     } else {
       const faculty = db.getFacultyByUserId(user.id);
@@ -105,7 +116,7 @@ export const App: React.FC = () => {
     setCurrentUser(user);
     setCurrentStudent(student);
     localStorage.setItem('sca_active_session', JSON.stringify({ user, studentId: student.id }));
-    navigateTo('/student/face-enrollment');
+    navigateTo('/student/dashboard');
   };
 
   const handleLogout = () => {
@@ -121,6 +132,40 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+      {/* Real-time Gmail Dispatch Banner Toast */}
+      {gmailToast && (
+        <div className="fixed top-4 right-4 z-50 max-w-sm w-full bg-slate-900 text-white rounded-2xl p-4 shadow-2xl border border-red-500/30 flex items-start justify-between gap-3 animate-bounce">
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <Mail className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-red-300 uppercase tracking-wider">Gmail Alert Dispatched</span>
+                <span className="text-[10px] text-slate-400 font-mono">{gmailToast.sentTimeStr}</span>
+              </div>
+              <h5 className="text-xs font-bold text-white mt-0.5">{gmailToast.subject}</h5>
+              <p className="text-[11px] text-slate-300">Sent to: <span className="font-mono text-emerald-300">{gmailToast.recipientEmail}</span></p>
+              
+              <a
+                href={gmailToast.gmailUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-red-400 hover:text-red-300 underline"
+              >
+                Open in Gmail <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+          <button
+            onClick={() => setGmailToast(null)}
+            className="text-slate-400 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <Navbar
         user={currentUser}
         profileName={currentStudent?.name || currentFaculty?.name || 'Academic Portal'}
@@ -139,17 +184,30 @@ export const App: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto pb-16 md:pb-6">
           {/* Guest / Auth Routes */}
-          {!currentUser && currentRoute === '/login' && (
-            <Login
-              onLoginSuccess={handleLoginSuccess}
-              onNavigateToRegister={() => navigateTo('/student/register')}
-            />
-          )}
-
           {!currentUser && currentRoute === '/student/register' && (
             <StudentRegister
               onSuccess={handleRegisterSuccess}
               onBackToLogin={() => navigateTo('/login')}
+            />
+          )}
+
+          {!currentUser && currentRoute === '/faculty/register' && (
+            <FacultyRegister
+              onSuccess={(user, faculty) => {
+                setCurrentUser(user);
+                setCurrentFaculty(faculty);
+                localStorage.setItem('sca_active_session', JSON.stringify({ user, facultyId: faculty.id }));
+                navigateTo('/faculty/dashboard');
+              }}
+              onBackToLogin={() => navigateTo('/login')}
+            />
+          )}
+
+          {!currentUser && currentRoute !== '/student/register' && currentRoute !== '/faculty/register' && (
+            <Login
+              onLoginSuccess={handleLoginSuccess}
+              onNavigateToRegister={() => navigateTo('/student/register')}
+              onNavigateToFacultyRegister={() => navigateTo('/faculty/register')}
             />
           )}
 
@@ -163,18 +221,8 @@ export const App: React.FC = () => {
                     setSelectedLecture(lec);
                     navigateTo('/student/attendance');
                   }}
-                  onNavigateToEnrollment={() => navigateTo('/student/face-enrollment')}
                   onNavigateToHistory={() => navigateTo('/student/history')}
-                />
-              )}
-
-              {currentRoute === '/student/face-enrollment' && (
-                <StudentFaceEnrollment
-                  student={currentStudent}
-                  onEnrollmentComplete={(updated) => {
-                    setCurrentStudent(updated);
-                    navigateTo('/student/dashboard');
-                  }}
+                  onNavigateToNotifications={() => navigateTo('/student/notifications')}
                 />
               )}
 
@@ -187,15 +235,20 @@ export const App: React.FC = () => {
                 />
               )}
 
+              {currentRoute === '/student/notifications' && (
+                <GmailNotificationsView
+                  userEmail={currentStudent.email || currentUser.email}
+                  role="STUDENT"
+                  onBack={() => navigateTo('/student/dashboard')}
+                />
+              )}
+
               {currentRoute === '/student/history' && (
                 <StudentHistory student={currentStudent} />
               )}
 
               {currentRoute === '/student/profile' && (
-                <StudentProfile
-                  student={currentStudent}
-                  onReEnrollFace={() => navigateTo('/student/face-enrollment')}
-                />
+                <StudentProfile student={currentStudent} />
               )}
             </>
           )}
@@ -246,6 +299,13 @@ export const App: React.FC = () => {
 
               {currentRoute === '/faculty/reports' && (
                 <FacultyReports />
+              )}
+
+              {currentRoute === '/faculty/notifications' && (
+                <GmailNotificationsView
+                  role="FACULTY"
+                  onBack={() => navigateTo('/faculty/dashboard')}
+                />
               )}
 
               {currentRoute === '/faculty/settings' && (

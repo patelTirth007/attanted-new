@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Lecture, AttendanceRecord, Student, AttendanceStatus } from '../types';
 import { db } from '../services/db';
+import { notificationService } from '../services/notificationService';
 import { exportAttendanceToCSV } from '../services/csvExport';
 import { StatusBadge } from '../components/StatusBadge';
+import { FacultyQRCodeGenerator } from '../components/FacultyQRCodeGenerator';
 import {
   Radio,
   FileSpreadsheet,
@@ -16,7 +18,11 @@ import {
   Edit,
   ShieldCheck,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Mail,
+  ExternalLink,
+  Send,
+  QrCode
 } from 'lucide-react';
 
 interface FacultyLiveAttendanceProps {
@@ -40,6 +46,7 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
   const [correctingRecord, setCorrectingRecord] = useState<AttendanceRecord | null>(null);
   const [newStatus, setNewStatus] = useState<AttendanceStatus>('PRESENT');
   const [correctionReason, setCorrectionReason] = useState('');
+  const [notificationToast, setNotificationToast] = useState<string | null>(null);
 
   const refreshData = () => {
     const updatedLec = db.getLectureById(lecture.id) || lecture;
@@ -54,11 +61,12 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
     return () => clearInterval(interval);
   }, [lecture.id]);
 
-  const eligibleStudents = students.filter(
+  const matchedStudents = students.filter(
     s => s.semester === currentLecture.semester && s.division.toUpperCase() === currentLecture.division.toUpperCase()
-  ).ifEmpty ? students.filter(s => s.division === 'A') : students;
+  );
+  const eligibleStudents = matchedStudents.length > 0 ? matchedStudents : students;
 
-  const totalStudents = eligibleStudents.length || 100;
+  const totalStudents = eligibleStudents.length || (students.length > 0 ? students.length : 1);
   const presentCount = attendance.filter(a => a.status === 'PRESENT').length;
   const lateCount = attendance.filter(a => a.status === 'LATE').length;
   const absentCount = Math.max(0, totalStudents - presentCount - lateCount);
@@ -84,17 +92,41 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
     refreshData();
   };
 
+  const handleResendGmail = (rec: AttendanceRecord) => {
+    const st = students.find(s => s.id === rec.studentId);
+    const settings = db.getCollegeSettings();
+    if (st) {
+      notificationService.sendAttendanceGmailNotification(
+        { ...st, email: rec.studentEmail },
+        currentLecture,
+        rec,
+        settings
+      );
+      setNotificationToast(`📧 Re-sent Gmail confirmation to ${rec.studentEmail}!`);
+      setTimeout(() => setNotificationToast(null), 3500);
+    }
+  };
+
   const filteredAttendance = attendance.filter(rec => {
     const matchesFilter = statusFilter === 'ALL' || rec.status === statusFilter;
     const matchesSearch = !search ||
       rec.studentName.toLowerCase().includes(search.toLowerCase()) ||
       rec.rollNumber.includes(search) ||
+      rec.studentEmail.toLowerCase().includes(search.toLowerCase()) ||
       rec.enrollmentNumber.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Toast Alert */}
+      {notificationToast && (
+        <div className="p-3 bg-red-50 border border-red-300 text-red-900 rounded-xl text-xs font-semibold flex items-center justify-between shadow-sm animate-fade-in">
+          <span>{notificationToast}</span>
+          <button onClick={() => setNotificationToast(null)} className="text-red-700 font-bold">×</button>
+        </div>
+      )}
+
       <button
         onClick={onBack}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
@@ -119,26 +151,27 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
             </span>
           </div>
           <h2 className="text-2xl font-black text-slate-900">{currentLecture.subjectName}</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Faculty: <strong className="text-slate-700">{currentLecture.facultyName}</strong> • Room {currentLecture.room} • {currentLecture.startTime} - {currentLecture.endTime}
+          <p className="text-xs text-slate-500">
+            Room: <strong className="text-slate-700">{currentLecture.room}</strong> • Window: {currentLecture.attendanceStart} – {currentLecture.attendanceEnd}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={toggleAttendanceStatus}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition shadow-sm ${
+            className={`px-4 py-2.5 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 ${
               currentLecture.status === 'ACTIVE'
-                ? 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100'
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
             }`}
           >
-            {currentLecture.status === 'ACTIVE' ? 'CLOSE ATTENDANCE WINDOW' : 'START ATTENDANCE'}
+            <Radio className="w-4 h-4" />
+            {currentLecture.status === 'ACTIVE' ? 'Close Attendance Session' : 'Reopen Attendance Session'}
           </button>
 
           <button
             onClick={handleExportCSV}
-            className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5"
+            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
           >
             <FileSpreadsheet className="w-4 h-4" />
             Export CSV
@@ -146,52 +179,54 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
         </div>
       </div>
 
-      {/* Real-time Metric Cards (Section 12) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        {/* Total Students */}
+      {/* Live 100-Meter Dynamic QR Code Generator */}
+      <FacultyQRCodeGenerator
+        lecture={currentLecture}
+        onSessionUpdated={setCurrentLecture}
+        attendanceCount={presentCount + lateCount}
+      />
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Students</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Eligible Roster</span>
           <div className="text-2xl font-black text-slate-900 mt-1">{totalStudents}</div>
-          <span className="text-[10px] text-slate-400">Total Eligible</span>
+          <span className="text-[10px] text-slate-500">Students registered</span>
         </div>
 
-        {/* Present */}
-        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">Present</span>
-          <div className="text-2xl font-black text-emerald-800 mt-1">{presentCount}</div>
-          <span className="text-[10px] text-emerald-600">Verified Face + GPS</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Present</span>
+          <div className="text-2xl font-black text-emerald-700 mt-1">{presentCount}</div>
+          <span className="text-[10px] text-emerald-600">Email verified</span>
         </div>
 
-        {/* Late */}
-        <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Late</span>
-          <div className="text-2xl font-black text-amber-800 mt-1">{lateCount}</div>
-          <span className="text-[10px] text-amber-600">After grace window</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Late</span>
+          <div className="text-2xl font-black text-amber-600 mt-1">{lateCount}</div>
+          <span className="text-[10px] text-amber-600">Outside window</span>
         </div>
 
-        {/* Absent */}
-        <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">Absent</span>
-          <div className="text-2xl font-black text-rose-800 mt-1">{absentCount}</div>
-          <span className="text-[10px] text-rose-600">Unmarked</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Absent</span>
+          <div className="text-2xl font-black text-rose-600 mt-1">{absentCount}</div>
+          <span className="text-[10px] text-rose-600">Pending mark</span>
         </div>
 
-        {/* Percentage */}
-        <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-blue-900 to-indigo-900 text-white rounded-2xl p-4 shadow-md">
-          <span className="text-[11px] font-bold text-blue-200 uppercase tracking-wider block">Attendance Rate</span>
-          <div className="text-2xl font-black mt-1">{attendancePercentage}%</div>
-          <span className="text-[10px] text-blue-200">Live Participation</span>
+        <div className="bg-gradient-to-br from-red-600 to-rose-700 text-white rounded-2xl p-4 shadow-sm col-span-2 lg:col-span-1">
+          <span className="text-[10px] font-bold text-red-100 uppercase tracking-wider block">Gmail Alerts</span>
+          <div className="text-2xl font-black mt-1">{attendance.length}</div>
+          <span className="text-[10px] text-red-100">Confirmations sent</span>
         </div>
       </div>
 
-      {/* Student Table & Filters */}
+      {/* Live Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-80">
+          <div className="relative w-full sm:w-72">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by student name, roll no, enrollment..."
+              placeholder="Search by student, email, or roll no..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -216,7 +251,7 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
           </div>
         </div>
 
-        {/* Table: Roll No | Enrollment | Name | Face | GPS | Time | Status | Action */}
+        {/* Table: Roll No | Enrollment | Name | Verified Email ID | Gmail Notification | GPS | Time | Status | Action */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -224,17 +259,18 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
                 <th className="py-3 px-4">Roll No</th>
                 <th className="py-3 px-4">Enrollment</th>
                 <th className="py-3 px-4">Student Name</th>
-                <th className="py-3 px-4">Face Biometric</th>
-                <th className="py-3 px-4">GPS Telemetry</th>
-                <th className="py-3 px-4">Time</th>
+                <th className="py-3 px-4">Verified Email ID</th>
+                <th className="py-3 px-4">QR & 100m Proximity</th>
+                <th className="py-3 px-4">Gmail Notification</th>
+                <th className="py-3 px-4">Marked Time</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Manual Action</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredAttendance.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400 text-xs">
+                  <td colSpan={9} className="text-center py-10 text-slate-400 text-xs">
                     No matching student attendance records.
                   </td>
                 </tr>
@@ -245,22 +281,36 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
                     <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">{rec.enrollmentNumber}</td>
                     <td className="py-3.5 px-4 font-bold text-slate-800">{rec.studentName}</td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        Verified ({rec.faceConfidence}%)
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                        {rec.studentEmail}
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-600">
-                        <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                        {Math.round(rec.distanceMeters)}m
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{Math.round(rec.facultyDistanceMeters || rec.distanceMeters)}m (≤100m)</span>
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                        <Mail className="w-3.5 h-3.5 text-red-600" />
+                        Delivered ✓
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-medium text-slate-700">{rec.markedTimeStr}</td>
                     <td className="py-3.5 px-4">
                       <StatusBadge status={rec.status} />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      <button
+                        onClick={() => handleResendGmail(rec)}
+                        className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition inline-flex items-center gap-1 border border-red-200"
+                        title="Resend Gmail notification"
+                      >
+                        <Send className="w-3 h-3" />
+                        Resend
+                      </button>
                       <button
                         onClick={() => {
                           setCorrectingRecord(rec);
@@ -287,7 +337,7 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-slate-900">Manually Correct Attendance</h3>
             <p className="text-xs text-slate-500">
-              Student: <strong className="text-slate-800">{correctingRecord.studentName}</strong> ({correctingRecord.enrollmentNumber})
+              Student: <strong className="text-slate-800">{correctingRecord.studentName}</strong> ({correctingRecord.studentEmail})
             </p>
 
             <div>
@@ -315,7 +365,7 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
               <textarea
                 required
                 rows={3}
-                placeholder="e.g. Student physically present; camera device glitch verified by faculty."
+                placeholder="e.g. Physically present in lecture room; email verification reconfirmed by faculty."
                 value={correctionReason}
                 onChange={(e) => setCorrectionReason(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"

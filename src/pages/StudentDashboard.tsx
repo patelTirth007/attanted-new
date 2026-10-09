@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Student, Lecture, AttendanceRecord, CollegeSettings } from '../types';
 import { db } from '../services/db';
 import { getCurrentDeviceLocation, verifyLocationGeofence, GeofenceVerificationResult } from '../services/gps';
+import { notificationService } from '../services/notificationService';
 import { GeofenceCard } from '../components/GeofenceCard';
 import { StatusBadge } from '../components/StatusBadge';
 import {
@@ -13,56 +14,76 @@ import {
   TrendingUp,
   Award,
   BookOpen,
-  Camera
+  Mail,
+  ShieldCheck,
+  CheckCircle2,
+  ExternalLink,
+  QrCode
 } from 'lucide-react';
 
 interface StudentDashboardProps {
   student: Student;
   onNavigateToMarkAttendance: (lecture: Lecture) => void;
-  onNavigateToEnrollment: () => void;
   onNavigateToHistory: () => void;
+  onNavigateToNotifications?: () => void;
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   student,
   onNavigateToMarkAttendance,
-  onNavigateToEnrollment,
-  onNavigateToHistory
+  onNavigateToHistory,
+  onNavigateToNotifications
 }) => {
+  const studentEmail = student.email || `${student.enrollmentNumber.toLowerCase()}@college.edu`;
+  const [activeSemester, setActiveSemester] = useState<number>(student.semester || 5);
+  const [allLecturesList, setAllLecturesList] = useState<Lecture[]>([]);
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [settings, setSettings] = useState<CollegeSettings>(db.getCollegeSettings());
+  const [settings] = useState<CollegeSettings>(db.getCollegeSettings());
   const [geofenceResult, setGeofenceResult] = useState<GeofenceVerificationResult | undefined>();
   const [loadingGps, setLoadingGps] = useState(false);
+  const [unreadEmailsCount, setUnreadEmailsCount] = useState(0);
 
-  useEffect(() => {
-    // Load student's lectures for their semester & division
+  const availableSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  const loadData = () => {
+    // Load student's lectures for active semester
     const allLecs = db.getAllLectures();
-    const studentLecs = allLecs.filter(
-      l => l.semester === student.semester && l.division.toUpperCase() === student.division.toUpperCase()
-    );
-    setLectures(studentLecs);
+    setAllLecturesList(allLecs);
 
-    // Load attendance records
-    const records = db.getAttendanceForStudent(student.id);
+    const semLecs = allLecs.filter(l => l.semester === activeSemester);
+    setLectures(semLecs);
+
+    // Load attendance records for this student and email
+    const records = db.getAllAttendance().filter(
+      a => a.studentId === student.id || (a.studentEmail && a.studentEmail.toLowerCase() === studentEmail.toLowerCase())
+    );
     setAttendance(records);
 
-    // Initial GPS check
-    checkLocation();
-  }, [student]);
+    // Notifications count
+    const notifs = notificationService.getNotificationsForEmail(studentEmail);
+    setUnreadEmailsCount(notifs.length);
+  };
 
-  const checkLocation = async (simulatedDistance?: number) => {
+  useEffect(() => {
+    loadData();
+    checkLocation();
+
+    const handleNotifEvent = () => loadData();
+    window.addEventListener('sca_gmail_notification_dispatched', handleNotifEvent);
+    return () => window.removeEventListener('sca_gmail_notification_dispatched', handleNotifEvent);
+  }, [student, studentEmail, activeSemester]);
+
+  const checkLocation = async () => {
     setLoadingGps(true);
     try {
-      const loc = await getCurrentDeviceLocation();
-      const currentLat = simulatedDistance 
-        ? settings.latitude + (simulatedDistance / 111000) 
-        : loc.latitude;
-      const currentLon = loc.longitude;
-
+      const loc = await getCurrentDeviceLocation({
+        latitude: settings.latitude,
+        longitude: settings.longitude
+      });
       const res = verifyLocationGeofence(
-        currentLat,
-        currentLon,
+        loc.latitude,
+        loc.longitude,
         loc.accuracy,
         settings.latitude,
         settings.longitude,
@@ -77,64 +98,91 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     }
   };
 
-  const totalConducted = Math.max(lectures.length * 5, 20);
-  const presentCount = attendance.filter(a => a.status === 'PRESENT').length;
-  const lateCount = attendance.filter(a => a.status === 'LATE').length;
+  const semesterAttendance = attendance.filter(a => {
+    const l = allLecturesList.find(lec => lec.id === a.lectureId);
+    return l?.semester === activeSemester;
+  });
+
+  const totalConducted = Math.max(lectures.length, 1);
+  const presentCount = semesterAttendance.filter(a => a.status === 'PRESENT').length;
+  const lateCount = semesterAttendance.filter(a => a.status === 'LATE').length;
   const absentCount = Math.max(0, totalConducted - presentCount - lateCount);
   const overallPercentage = ((presentCount + (lateCount * 0.8)) / totalConducted) * 100;
 
-  // Subject-wise percentage analytics
-  const subjects = db.getAllSubjects().slice(0, 4);
-  const subjectStats = subjects.map((sub, i) => {
-    const basePct = [85, 78, 92, 88][i] || 82;
+  // Distinct subjects for active semester and their attendance analytics
+  const allSubjects = db.getAllSubjects();
+  const semesterSubjects = allSubjects.filter(s => s.semester === activeSemester);
+  const subjectsToDisplay = semesterSubjects.length > 0 
+    ? semesterSubjects 
+    : allSubjects.filter(s => s.semester === student.semester);
+
+  const subjectsWithStats = subjectsToDisplay.map((sub) => {
+    const subjectLecs = lectures.filter(l => l.subjectId === sub.id || l.subjectCode === sub.subjectCode);
+    const subTotal = subjectLecs.length || 1;
+    const subPresent = semesterAttendance.filter(a => {
+      const lec = lectures.find(l => l.id === a.lectureId);
+      return lec?.subjectId === sub.id || lec?.subjectCode === sub.subjectCode;
+    }).length;
+    const pct = Math.min(100, Math.round((subPresent / subTotal) * 100));
+
     return {
+      id: sub.id,
       name: sub.subjectName,
       code: sub.subjectCode,
-      pct: basePct
+      semester: sub.semester,
+      total: subTotal,
+      present: subPresent,
+      pct: pct > 0 ? pct : (subPresent > 0 ? 100 : 0)
     };
   });
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Face enrollment warning banner if not enrolled */}
-      {!student.faceEnrollmentStatus && (
-        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-amber-900">Biometric Face Setup Required</h4>
-              <p className="text-xs text-amber-700">
-                You must complete face enrollment before you can mark lecture attendance.
-              </p>
-            </div>
+      {/* Top Banner / Student Greeting & Email Badge */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+              Sem {student.semester} - Div {student.division}
+            </span>
+            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              Roll No: {student.rollNumber}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              1 Email = 1 Subject Attendance Active
+            </span>
           </div>
+
+          <h2 className="text-2xl font-black text-slate-900">Welcome, {student.name}</h2>
+          
+          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-600">
+            <span>Official Email ID:</span>
+            <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+              {studentEmail}
+            </span>
+            <span>• Enrollment: <strong className="text-slate-800">{student.enrollmentNumber}</strong></span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {onNavigateToNotifications && (
+            <button
+              onClick={onNavigateToNotifications}
+              className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 transition flex items-center gap-1.5 shadow-sm"
+            >
+              <Mail className="w-4 h-4 text-red-600" />
+              Gmail Notifications ({unreadEmailsCount})
+            </button>
+          )}
+
           <button
-            onClick={onNavigateToEnrollment}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition shrink-0"
+            onClick={onNavigateToHistory}
+            className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
           >
-            <Camera className="w-4 h-4" />
-            Enroll Face ID Now
+            Attendance History →
           </button>
         </div>
-      )}
-
-      {/* Top Banner / Student Greeting */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-900">Welcome, {student.name}</h2>
-          <p className="text-xs text-slate-500">
-            Enrollment: <strong className="text-slate-700">{student.enrollmentNumber}</strong> • Roll No: {student.rollNumber} • Sem {student.semester} (Div {student.division})
-          </p>
-        </div>
-
-        <button
-          onClick={onNavigateToHistory}
-          className="self-start sm:self-auto px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
-        >
-          View Attendance History →
-        </button>
       </div>
 
       {/* Metrics Cards */}
@@ -158,63 +206,120 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </div>
         </div>
 
-        {/* Present */}
+        {/* Present Count */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Total Present</span>
+            <span>Total Marked Present</span>
             <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <CheckCircle className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2">{presentCount}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Verified with Face & GPS</p>
+          <p className="text-[11px] text-slate-400 mt-1">Verified via Email & GPS</p>
         </div>
 
-        {/* Late */}
+        {/* Gmail Notifications Dispatched */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Late Marked</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
+            <span>Gmail Confirmations</span>
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+              <Mail className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-2">{lateCount}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Outside grace window</p>
+          <div className="text-2xl font-black text-slate-900 mt-2">{unreadEmailsCount}</div>
+          <p className="text-[11px] text-slate-400 mt-1">Official messages sent</p>
         </div>
 
         {/* Absent */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Absent Count</span>
+            <span>Missed Sessions</span>
             <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2">{absentCount}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Conducted missed</p>
+          <p className="text-[11px] text-slate-400 mt-1">Pending attendance</p>
         </div>
       </div>
 
-      {/* GPS Geofence Card */}
+      {/* GPS Campus Geofence Status */}
       <GeofenceCard
         result={geofenceResult}
         collegeLat={settings.latitude}
         collegeLon={settings.longitude}
         allowedRadius={settings.allowedRadiusMeters}
-        onSimulate={(dist) => checkLocation(dist)}
+        onRefreshGPS={checkLocation}
+        isRefreshing={loadingGps}
       />
 
-      {/* Today's Lectures */}
+      {/* Semester Selection Tabs for Student */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2">
+        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+          <span>🎓 View Lectures & Attendance by Semester:</span>
+          {activeSemester !== student.semester && (
+            <button
+              onClick={() => setActiveSemester(student.semester)}
+              className="text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              Back to My Enrolled Semester ({student.semester}) →
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
+          {availableSemesters.map((sem) => {
+            const isEnrolled = student.semester === sem;
+            const isSelected = activeSemester === sem;
+            const count = allLecturesList.filter(l => l.semester === sem).length;
+
+            return (
+              <button
+                key={sem}
+                onClick={() => setActiveSemester(sem)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-blue-700 text-white shadow-sm'
+                    : isEnrolled
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>Sem {sem}</span>
+                {isEnrolled && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
+                    isSelected ? 'bg-blue-800 text-blue-100' : 'bg-blue-600 text-white'
+                  }`}>
+                    My Batch
+                  </span>
+                )}
+                {count > 0 && !isEnrolled && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Today's Lectures (Different Subjects, Different Attendance) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Today's Active Lectures</h3>
-            <p className="text-xs text-slate-500">
-              Only active lectures inside the 2 KM college zone can be marked with face recognition
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900">Today's Subject Lecture Sessions</h3>
+              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                Different Subjects • Different Attendance
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Each subject has its own attendance session. 1 attendance per email ID ({studentEmail}) is enforced.
             </p>
           </div>
-          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
-            Sem {student.semester} - Div {student.division}
+          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+            Sem {activeSemester} {activeSemester === student.semester ? `(My Batch • Div ${student.division})` : `Sessions`}
           </span>
         </div>
 
@@ -227,60 +332,70 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="pb-3">Subject</th>
-                  <th className="pb-3">Time</th>
+                  <th className="pb-3">Subject & Code</th>
+                  <th className="pb-3">Time Window</th>
                   <th className="pb-3">Faculty</th>
                   <th className="pb-3">Room</th>
-                  <th className="pb-3">Status</th>
+                  <th className="pb-3">Email Attendance Status</th>
                   <th className="pb-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {lectures.map((lec) => {
-                  const alreadyMarked = attendance.find(a => a.lectureId === lec.id);
+                  const alreadyMarked = attendance.find(a => 
+                    a.lectureId === lec.id && (
+                      a.studentId === student.id || 
+                      (a.studentEmail && a.studentEmail.toLowerCase() === studentEmail.toLowerCase())
+                    )
+                  );
                   const isReady = lec.status === 'ACTIVE';
 
                   return (
                     <tr key={lec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 pr-3 font-semibold text-slate-800">
-                        <div>{lec.subjectName}</div>
-                        <span className="text-[10px] text-slate-400 font-normal">{lec.subjectCode}</span>
+                        <div className="font-bold text-slate-900">{lec.subjectName}</div>
+                        <span className="text-[10px] text-blue-700 font-mono font-medium">{lec.subjectCode}</span>
                       </td>
                       <td className="py-3.5 pr-3 text-slate-600 font-medium whitespace-nowrap">
-                        {lec.startTime} - {lec.endTime}
+                        <div>{lec.startTime} - {lec.endTime}</div>
+                        <span className="text-[10px] text-slate-400">Window: {lec.attendanceStart} - {lec.attendanceEnd}</span>
                       </td>
                       <td className="py-3.5 pr-3 text-slate-600">{lec.facultyName}</td>
                       <td className="py-3.5 pr-3 text-slate-600">{lec.room}</td>
                       <td className="py-3.5 pr-3">
                         {alreadyMarked ? (
-                          <StatusBadge status={alreadyMarked.status} />
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              PRESENT (Marked {alreadyMarked.markedTimeStr})
+                            </span>
+                            <span className="text-[10px] text-red-600 flex items-center gap-1 font-semibold pl-1">
+                              <Mail className="w-2.5 h-2.5" /> Gmail Sent
+                            </span>
+                          </div>
                         ) : (
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            isReady ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                            isReady ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'
                           }`}>
-                            {lec.status}
+                            {isReady ? 'SESSION OPEN' : lec.status}
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 text-right whitespace-nowrap">
                         {alreadyMarked ? (
-                          <span className="text-[11px] font-semibold text-slate-400">
-                            Marked at {alreadyMarked.markedTimeStr}
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                            ✓ Verified Active
                           </span>
                         ) : isReady ? (
                           <button
                             onClick={() => onNavigateToMarkAttendance(lec)}
-                            disabled={!student.faceEnrollmentStatus}
-                            className={`px-3 py-1.5 font-bold rounded-lg text-xs transition shadow-sm ${
-                              student.faceEnrollmentStatus
-                                ? 'bg-blue-700 hover:bg-blue-800 text-white'
-                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            }`}
+                            className="px-3 py-1.5 font-bold rounded-lg text-xs transition shadow-sm bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-1.5 ml-auto"
                           >
-                            MARK ATTENDANCE
+                            <QrCode className="w-3.5 h-3.5" />
+                            SCAN 100M QR
                           </button>
                         ) : (
-                          <span className="text-slate-400 font-medium">NOT ACTIVE</span>
+                          <span className="text-slate-400 font-medium">SESSION CLOSED</span>
                         )}
                       </td>
                     </tr>
@@ -292,31 +407,35 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         )}
       </div>
 
-      {/* Subject-wise Attendance Analytics */}
+      {/* Subject-wise Attendance Analytics (Different Subjects, Different Attendance) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-        <h3 className="text-base font-bold text-slate-900 mb-1">Subject-wise Attendance</h3>
-        <p className="text-xs text-slate-500 mb-4">
-          Minimum 75% required per subject to appear in final semester examinations
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Subject-wise Attendance Registry</h3>
+            <p className="text-xs text-slate-500">
+              Each subject tracks attendance independently. Minimum 75% attendance required per subject.
+            </p>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {subjectStats.map((stat) => (
-            <div key={stat.code} className="p-4 rounded-xl border border-slate-100 bg-slate-50/60">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-800 truncate pr-2">{stat.name}</span>
-                <span className={`text-xs font-extrabold ${stat.pct >= 75 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {stat.pct}%
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {subjectsWithStats.map((sub) => (
+            <div key={sub.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 truncate pr-2">{sub.name}</span>
+                <span className={`text-xs font-black ${sub.pct >= 75 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {sub.pct}%
                 </span>
               </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-2">
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${stat.pct >= 75 ? 'bg-emerald-600' : 'bg-amber-500'}`}
-                  style={{ width: `${stat.pct}%` }}
+                  className={`h-full rounded-full transition-all duration-500 ${sub.pct >= 75 ? 'bg-emerald-600' : 'bg-amber-500'}`}
+                  style={{ width: `${Math.max(sub.pct, 5)}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Code: {stat.code}</span>
-                <span>{stat.pct >= 75 ? 'Exam Eligible' : 'Short Attendance'}</span>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                <span className="font-mono text-slate-600">{sub.code}</span>
+                <span>{sub.present} / {sub.total} Attended</span>
               </div>
             </div>
           ))}
