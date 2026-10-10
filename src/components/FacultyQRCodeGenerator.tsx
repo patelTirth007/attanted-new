@@ -172,6 +172,27 @@ export const FacultyQRCodeGenerator: React.FC<FacultyQRCodeGeneratorProps> = ({
     }
   };
 
+  const handleUseCampusCoords = () => {
+    const settings = db.getCollegeSettings();
+    setFacultyCoords({
+      latitude: settings.latitude,
+      longitude: settings.longitude,
+      accuracy: 5
+    });
+
+    const updated = db.updateLectureQRSession(lecture.id, {
+      facultyLatitude: settings.latitude,
+      facultyLongitude: settings.longitude,
+      geofenceRadiusMeters: 100,
+      qrSessionToken: sessionToken,
+      qrPasscode: passcode
+    });
+
+    if (updated && onSessionUpdated) {
+      onSessionUpdated(updated);
+    }
+  };
+
   const handleCopyPasscode = () => {
     navigator.clipboard.writeText(passcode);
     setCopiedPasscode(true);
@@ -327,14 +348,23 @@ export const FacultyQRCodeGenerator: React.FC<FacultyQRCodeGeneratorProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleSyncFacultyHandheldGps}
-                    disabled={isSyncingGps}
-                    className="px-3 py-1.5 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-blue-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isSyncingGps ? 'animate-spin' : ''}`} />
-                    {isSyncingGps ? 'Syncing...' : 'Sync Device GPS'}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleUseCampusCoords}
+                      className="px-2.5 py-1.5 bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs font-semibold rounded-xl flex items-center gap-1 transition"
+                      title="Reset coordinates to campus defaults"
+                    >
+                      Campus GPS
+                    </button>
+                    <button
+                      onClick={handleSyncFacultyHandheldGps}
+                      disabled={isSyncingGps}
+                      className="px-3 py-1.5 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-blue-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncingGps ? 'animate-spin' : ''}`} />
+                      {isSyncingGps ? 'Syncing...' : 'Sync Device GPS'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs">

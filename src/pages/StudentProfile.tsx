@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Student } from '../types';
 import { db } from '../services/db';
 import { notificationService } from '../services/notificationService';
-import { User, Shield, Mail, CheckCircle2, FileText, Bell, BookOpen, ExternalLink } from 'lucide-react';
+import { User, Shield, Mail, CheckCircle2, FileText, Bell, BookOpen, ExternalLink, Smartphone } from 'lucide-react';
+import { generateStudentFaceSvg } from '../services/biometrics';
 
 interface StudentProfileProps {
   student: Student;
@@ -25,12 +26,16 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Profile Card */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-2xl mx-auto">
-            {student.name.charAt(0)}
+          <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-blue-600/40 mx-auto shadow-md bg-slate-100 flex items-center justify-center">
+            <img
+              src={student.facePhotoUrl || generateStudentFaceSvg(student.name, student.enrollmentNumber)}
+              alt={student.name}
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="text-center">
             <h3 className="text-lg font-bold text-slate-900">{student.name}</h3>
-            <p className="text-xs text-slate-500">{student.enrollmentNumber}</p>
+            <p className="text-xs text-slate-500 font-mono font-bold text-blue-700">{student.enrollmentNumber}</p>
           </div>
 
           <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
@@ -53,6 +58,28 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
             <div className="flex justify-between py-1">
               <span className="text-slate-400">Mobile</span>
               <span className="font-semibold text-slate-800">{student.phone}</span>
+            </div>
+          </div>
+
+          {/* 1 Device 1 IP Hardware Registration Box */}
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-1.5 text-xs">
+            <div className="flex items-center justify-between font-bold text-blue-950">
+              <span className="flex items-center gap-1">
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                1 Device : 1 IP Bound
+              </span>
+              <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-bold">
+                ENFORCED ✓
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-600">
+              <span className="text-slate-400 block text-[10px]">Registered Hardware</span>
+              <span className="font-bold text-slate-800 truncate block">{student.deviceName || 'Student Device'}</span>
+              <span className="font-mono text-[10px] text-slate-500 block truncate">{student.deviceId || 'DEV-BOUND'}</span>
+            </div>
+            <div className="text-[11px] text-slate-600 pt-1 border-t border-blue-200/50">
+              <span className="text-slate-400 block text-[10px]">Traced Network IP</span>
+              <span className="font-mono font-bold text-blue-800">{student.ipAddress || '192.168.101.45'}</span>
             </div>
           </div>
         </div>

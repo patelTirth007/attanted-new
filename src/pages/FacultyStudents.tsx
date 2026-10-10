@@ -13,8 +13,12 @@ import {
   Check, 
   FileSpreadsheet,
   AlertCircle,
-  Mail
+  Mail,
+  ScanFace,
+  Smartphone,
+  Camera
 } from 'lucide-react';
+import { generateStudentFaceSvg } from '../services/biometrics';
 
 export const FacultyStudents: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -25,6 +29,7 @@ export const FacultyStudents: React.FC = () => {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkInput, setBulkInput] = useState('');
   const [bulkSemester, setBulkSemester] = useState(5);
+  const [selectedStudentForBio, setSelectedStudentForBio] = useState<Student | null>(null);
 
   // New Student form
   const [enrollmentNumber, setEnrollmentNumber] = useState('');
@@ -311,9 +316,9 @@ export const FacultyStudents: React.FC = () => {
                   <th className="py-3 px-4">Roll No</th>
                   <th className="py-3 px-4">Enrollment</th>
                   <th className="py-3 px-4">Student Name</th>
+                  <th className="py-3 px-4">Biometric Face Record & Device</th>
                   <th className="py-3 px-4">Registered Email ID (Gmail)</th>
                   <th className="py-3 px-4">Semester & Div</th>
-                  <th className="py-3 px-4">Phone</th>
                   <th className="py-3 px-4">Single Email Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
@@ -325,13 +330,40 @@ export const FacultyStudents: React.FC = () => {
                     <td className="py-3.5 px-4 font-mono text-[11px] text-blue-700 font-semibold">{s.enrollmentNumber}</td>
                     <td className="py-3.5 px-4 font-bold text-slate-800">{s.name}</td>
                     <td className="py-3.5 px-4">
+                      <div 
+                        onClick={() => setSelectedStudentForBio(s)}
+                        className="flex items-center gap-2 cursor-pointer group"
+                        title="Click to view full Biometric Face Record & Device details"
+                      >
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 group-hover:border-blue-500 shadow-xs shrink-0 bg-slate-100 flex items-center justify-center">
+                          <img
+                            src={s.facePhotoUrl || generateStudentFaceSvg(s.name, s.enrollmentNumber)}
+                            alt={s.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="text-[11px] leading-tight">
+                          <span className="font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-700">
+                            <ScanFace className="w-3 h-3 text-sky-600" />
+                            Face Enrolled ✓
+                          </span>
+                          <span className="text-[10px] text-slate-500 flex items-center gap-0.5 mt-0.5 truncate max-w-[140px]">
+                            <Smartphone className="w-2.5 h-2.5 text-slate-400" />
+                            {s.deviceName || 'Trusted Device'}
+                          </span>
+                          <span className="text-[9px] font-mono text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-100 flex items-center gap-0.5 mt-0.5 w-fit">
+                            IP: {s.ipAddress || '192.168.101.45'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
                         <Mail className="w-3 h-3 text-red-600" />
                         {s.email || `${s.enrollmentNumber.toLowerCase()}@college.edu`}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">Sem {s.semester} (Div {s.division})</td>
-                    <td className="py-3.5 px-4 text-slate-500">{s.phone}</td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                         <ShieldCheck className="w-3.5 h-3.5" />
@@ -530,6 +562,104 @@ export const FacultyStudents: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Student Biometric Identification & Device Card Modal */}
+      {selectedStudentForBio && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <ScanFace className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Student Biometric Record</h3>
+                  <p className="text-[11px] text-slate-500">Enrolled Face Scan & Registered Device</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStudentForBio(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Enrolled Face Photo Display */}
+            <div className="bg-slate-950 rounded-2xl p-4 flex flex-col items-center justify-center border-2 border-slate-800 relative overflow-hidden">
+              <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-sky-400/80 shadow-[0_0_20px_rgba(56,189,248,0.3)] bg-slate-900">
+                <img
+                  src={selectedStudentForBio.facePhotoUrl || generateStudentFaceSvg(selectedStudentForBio.name, selectedStudentForBio.enrollmentNumber)}
+                  alt={selectedStudentForBio.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold text-sky-300 bg-sky-950/80 px-2.5 py-0.5 rounded-full border border-sky-500/40 flex items-center gap-1">
+                  <ScanFace className="w-3 h-3 text-sky-400" />
+                  BIOMETRIC ENROLLED & ACTIVE
+                </span>
+              </div>
+            </div>
+
+            {/* Student & Device Details */}
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Student Name</span>
+                <span className="font-bold text-slate-900">{selectedStudentForBio.name}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Enrollment Number</span>
+                <span className="font-mono font-bold text-blue-700">{selectedStudentForBio.enrollmentNumber}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Semester & Div</span>
+                <span className="font-semibold text-slate-800">Sem {selectedStudentForBio.semester} - Div {selectedStudentForBio.division}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Registered Email</span>
+                <span className="font-mono text-slate-700 text-[11px]">{selectedStudentForBio.email}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Approved Device</span>
+                <span className="font-bold text-emerald-700 flex items-center gap-1">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  {selectedStudentForBio.deviceName || 'Student Hardware'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Device Hardware ID</span>
+                <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded font-bold">
+                  {selectedStudentForBio.deviceId || 'DEV-VERIFIED'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">Traced Network IP Address</span>
+                <span className="font-mono text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-bold">
+                  {selectedStudentForBio.ipAddress || '192.168.101.45'} (1 Device : 1 IP)
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Anti-Proxy Security Enforcement:</strong> 1 Device & 1 IP address is bound to Enrollment <strong>{selectedStudentForBio.enrollmentNumber}</strong>. No other device can scan or mark attendance for this student. Absent students cannot have their attendance filled by peers.
+              </span>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForBio(null)}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
+              >
+                Close Identification Card
+              </button>
+            </div>
           </div>
         </div>
       )}

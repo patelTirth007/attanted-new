@@ -15,7 +15,10 @@ import {
   ShieldCheck,
   Trash2,
   AlertTriangle,
-  Compass
+  Compass,
+  KeyRound,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface FacultyDashboardProps {
@@ -40,6 +43,9 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
   const [settings, setSettings] = useState<CollegeSettings>(db.getCollegeSettings());
   const [hasDemoRecords, setHasDemoRecords] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState<number | 'ALL'>('ALL');
+  const [copiedSecretCode, setCopiedSecretCode] = useState(false);
+
+  const facultySecretCode = faculty.secretCode || 'SSIT@1900';
 
   const refreshData = () => {
     setLectures(db.getAllLectures());
@@ -106,6 +112,56 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
             + CREATE LECTURE
           </button>
         </div>
+      </div>
+
+      {/* Official Faculty Secret Security Authorization Code Card */}
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-purple-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-400/30 flex items-center justify-center shrink-0">
+            <KeyRound className="w-6 h-6 text-purple-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-300 bg-purple-400/20 px-2 py-0.5 rounded border border-purple-400/30">
+                Institutional Security Key
+              </span>
+              <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> Authorized Faculty Panel
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xs text-purple-200">Faculty Secret Security Code:</span>
+              <span className="font-mono text-base font-black text-amber-300 tracking-wider bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-300/40">
+                {facultySecretCode}
+              </span>
+            </div>
+            <p className="text-[11px] text-purple-200/80 mt-1">
+              This secret code is required during new faculty registration and administrative operations to safeguard institutional records.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(facultySecretCode);
+            setCopiedSecretCode(true);
+            setTimeout(() => setCopiedSecretCode(false), 2500);
+          }}
+          className="self-start sm:self-auto px-3.5 py-2 bg-purple-700/60 hover:bg-purple-700 text-white font-bold text-xs rounded-xl border border-purple-400/40 shadow-sm transition flex items-center gap-1.5 shrink-0"
+        >
+          {copiedSecretCode ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Copied {facultySecretCode}!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" />
+              <span>Copy Secret Code</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Demo Records Notification Alert (if present) */}

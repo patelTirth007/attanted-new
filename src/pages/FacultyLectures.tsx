@@ -19,9 +19,11 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [filterSemester, setFilterSemester] = useState<number | 'ALL'>('ALL');
+  const [filterSubjectId, setFilterSubjectId] = useState<string>('ALL');
 
   // Form fields
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [isCreatingNewSubject, setIsCreatingNewSubject] = useState(false);
   const [semester, setSemester] = useState(5);
   const [division, setDivision] = useState('A');
   const [room, setRoom] = useState('Room 101 - Lecture Hall');
@@ -53,11 +55,13 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
   // When form semester changes, auto-select matching subject
   const handleFormSemesterChange = (newSem: number) => {
     setSemester(newSem);
+    setIsCreatingNewSubject(false);
     const matchingSubs = subjects.filter(s => s.semester === newSem);
     if (matchingSubs.length > 0) {
       setSelectedSubjectId(matchingSubs[0].id);
     } else {
       setSelectedSubjectId('');
+      setIsCreatingNewSubject(true);
     }
   };
 
@@ -65,8 +69,8 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
     e.preventDefault();
     let sub = subjects.find(s => s.id === selectedSubjectId);
     
-    // If no subject selected or custom entered
-    if (!sub) {
+    // If user selected to create new subject or no subject existed
+    if (isCreatingNewSubject || !sub) {
       const code = customSubjectCode.trim() || `SEM${semester}-101`;
       const name = customSubjectName.trim() || `Course for Semester ${semester}`;
       sub = db.addSubject({
@@ -77,6 +81,7 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
       });
     }
 
+    const collegeSettings = db.getCollegeSettings();
     db.createLecture({
       subjectId: sub.id,
       facultyId,
@@ -91,23 +96,32 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
       endTime,
       attendanceStart,
       attendanceEnd,
+      facultyLatitude: collegeSettings.latitude,
+      facultyLongitude: collegeSettings.longitude,
+      geofenceRadiusMeters: 100,
       status: 'ACTIVE'
     });
 
     loadData();
     setShowCreateModal(false);
+    setIsCreatingNewSubject(false);
     setCustomSubjectCode('');
     setCustomSubjectName('');
     setFeedback(`✅ Real Lecture for Semester ${semester} (${sub.subjectName}) created!`);
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const displayedLectures = filterSemester === 'ALL'
-    ? lectures
-    : lectures.filter(l => l.semester === filterSemester);
+  const displayedLectures = lectures.filter(l => {
+    const semMatch = filterSemester === 'ALL' || l.semester === filterSemester;
+    const subMatch = filterSubjectId === 'ALL' || l.subjectId === filterSubjectId || l.subjectCode === filterSubjectId;
+    return semMatch && subMatch;
+  });
 
   const availableSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
   const semesterSubjects = subjects.filter(s => s.semester === semester);
+  const filterAvailableSubjects = filterSemester === 'ALL' 
+    ? subjects 
+    : subjects.filter(s => s.semester === filterSemester);
 
   const handleToggleStatus = (lecture: Lecture) => {
     const newStatus = lecture.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE';
@@ -208,7 +222,10 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
             return (
               <button
                 key={sem}
-                onClick={() => setFilterSemester(sem)}
+                onClick={() => {
+                  setFilterSemester(sem);
+                  setFilterSubjectId('ALL');
+                }}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-blue-700 text-white shadow-sm'
@@ -226,6 +243,35 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
               </button>
             );
           })}
+        </div>
+
+        {/* Dynamic Subject Select Option for Faculty Filter */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-600">📚 Subject Select Option:</span>
+            <select
+              value={filterSubjectId}
+              onChange={(e) => setFilterSubjectId(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ALL">
+                All Subjects {filterSemester === 'ALL' ? 'Across All Semesters' : `in Semester ${filterSemester}`} ({filterAvailableSubjects.length} courses)
+              </option>
+              {filterAvailableSubjects.map(sub => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.subjectName} ({sub.subjectCode}) {filterSemester === 'ALL' ? `[Sem ${sub.semester}]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {filterSubjectId !== 'ALL' && (
+            <button
+              onClick={() => setFilterSubjectId('ALL')}
+              className="text-xs text-blue-700 hover:text-blue-900 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
+            >
+              Show All Subjects in Semester
+            </button>
+          )}
         </div>
       </div>
 
@@ -345,11 +391,21 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
               </div>
 
               {/* Subject Course for chosen semester */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Subject Course (Semester {semester}) *
-                </label>
-                {semesterSubjects.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700">
+                    Subject Course (Semester {semester}) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewSubject(!isCreatingNewSubject)}
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800"
+                  >
+                    {isCreatingNewSubject ? '← Pick Existing Course' : `+ Add New Subject to Sem ${semester}`}
+                  </button>
+                </div>
+
+                {!isCreatingNewSubject && semesterSubjects.length > 0 ? (
                   <select
                     value={selectedSubjectId}
                     onChange={(e) => setSelectedSubjectId(e.target.value)}
@@ -364,7 +420,9 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
                 ) : (
                   <div className="space-y-2 bg-blue-50/60 p-3 rounded-xl border border-blue-200">
                     <p className="text-[11px] text-blue-900 font-semibold">
-                      No courses saved yet for Semester {semester}. Enter course details below:
+                      {semesterSubjects.length === 0
+                        ? `No courses saved yet for Semester ${semester}. Enter new course details below:`
+                        : `Create a new course for Semester ${semester}:`}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <input

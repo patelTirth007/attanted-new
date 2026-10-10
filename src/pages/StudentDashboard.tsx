@@ -18,8 +18,15 @@ import {
   ShieldCheck,
   CheckCircle2,
   ExternalLink,
-  QrCode
+  QrCode,
+  ScanFace,
+  Smartphone,
+  Camera,
+  Sparkles,
+  GraduationCap
 } from 'lucide-react';
+import { StudentBiometricModal } from '../components/StudentBiometricModal';
+import { generateStudentFaceSvg } from '../services/biometrics';
 
 interface StudentDashboardProps {
   student: Student;
@@ -34,8 +41,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onNavigateToHistory,
   onNavigateToNotifications
 }) => {
-  const studentEmail = student.email || `${student.enrollmentNumber.toLowerCase()}@college.edu`;
-  const [activeSemester, setActiveSemester] = useState<number>(student.semester || 5);
+  const [currentStudent, setCurrentStudent] = useState<Student>(() => {
+    return db.getStudentById(student.id) || student;
+  });
+  const studentEmail = currentStudent.email || `${currentStudent.enrollmentNumber.toLowerCase()}@college.edu`;
+  const [activeSemester, setActiveSemester] = useState<number>(currentStudent.semester || 5);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('ALL');
   const [allLecturesList, setAllLecturesList] = useState<Lecture[]>([]);
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -43,8 +54,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [geofenceResult, setGeofenceResult] = useState<GeofenceVerificationResult | undefined>();
   const [loadingGps, setLoadingGps] = useState(false);
   const [unreadEmailsCount, setUnreadEmailsCount] = useState(0);
+  const [showBiometricModal, setShowBiometricModal] = useState<boolean>(false);
 
   const availableSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  const handleSemesterChange = (newSem: number) => {
+    setActiveSemester(newSem);
+    setSelectedSubjectId('ALL');
+  };
 
   const loadData = () => {
     // Load student's lectures for active semester
@@ -136,6 +153,44 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     };
   });
 
+  // Statistics across ALL 8 semesters
+  const allSemestersStats = availableSemesters.map(sem => {
+    const semLecs = allLecturesList.filter(l => l.semester === sem);
+    const semAtt = attendance.filter(a => {
+      const l = allLecturesList.find(lec => lec.id === a.lectureId);
+      return l?.semester === sem;
+    });
+    const conducted = semLecs.length;
+    const attended = semAtt.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
+    const percentage = conducted > 0 ? Math.round((attended / conducted) * 100) : 0;
+    const semSubs = allSubjects.filter(s => s.semester === sem);
+    return {
+      semester: sem,
+      coursesCount: semSubs.length,
+      conducted,
+      attended,
+      percentage,
+      isEligible: percentage >= 75
+    };
+  });
+
+  const totalAllConducted = allSemestersStats.reduce((acc, s) => acc + s.conducted, 0);
+  const totalAllAttended = allSemestersStats.reduce((acc, s) => acc + s.attended, 0);
+  const cumulativeAllPercentage = totalAllConducted > 0 
+    ? Math.round((totalAllAttended / totalAllConducted) * 100) 
+    : 0;
+
+  // Filter lectures by selected subject
+  const displayedLectures = lectures.filter(lec => {
+    if (selectedSubjectId === 'ALL') return true;
+    return lec.subjectId === selectedSubjectId || lec.subjectCode === selectedSubjectId;
+  });
+
+  // Filter subject stats if selectedSubjectId is chosen
+  const filteredSubjectsWithStats = selectedSubjectId === 'ALL'
+    ? subjectsWithStats
+    : subjectsWithStats.filter(s => s.id === selectedSubjectId || s.code === selectedSubjectId);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Top Banner / Student Greeting & Email Badge */}
@@ -166,6 +221,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowBiometricModal(true)}
+            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition flex items-center gap-1.5 shadow-sm"
+          >
+            <ScanFace className="w-4 h-4 text-blue-600" />
+            Face Scan & Device Profile
+          </button>
+
           {onNavigateToNotifications && (
             <button
               onClick={onNavigateToNotifications}
@@ -183,6 +246,50 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             Attendance History →
           </button>
         </div>
+      </div>
+
+      {/* Step 1: Student Biometric Face Scan & Registered Device Card */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-sky-400 shadow-md bg-slate-800 shrink-0">
+            <img
+              src={currentStudent.facePhotoUrl || generateStudentFaceSvg(currentStudent.name, currentStudent.enrollmentNumber)}
+              alt={currentStudent.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-400/40">
+                Step 1 Biometric Security
+              </span>
+              <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Face Enrolled in Faculty Section
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-xs font-bold text-slate-200">Registered Device:</span>
+              <span className="font-mono text-xs text-sky-200 bg-white/10 px-2 py-0.5 rounded">
+                {currentStudent.deviceName || 'Trusted Student Device'}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                ({currentStudent.deviceId || 'DEV-VERIFIED'})
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300/80 mt-1">
+              Required for attendance: At lecture time, <strong>(1) 100m Location</strong>, <strong>(2) Session Code</strong>, and <strong>(3) Device & Face Scan</strong> must all match to approve attendance.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowBiometricModal(true)}
+          className="self-start sm:self-auto px-4 py-2.5 bg-sky-500 hover:bg-sky-600 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
+        >
+          <Camera className="w-3.5 h-3.5 text-slate-950" />
+          Update Face Scan / Device
+        </button>
       </div>
 
       {/* Metrics Cards */}
@@ -253,14 +360,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         isRefreshing={loadingGps}
       />
 
-      {/* Semester Selection Tabs for Student */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-          <span>🎓 View Lectures & Attendance by Semester:</span>
+      {/* Semester Selection Tabs & Subject Select Option */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-slate-800">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-blue-700" />
+            <span>Select Semester (Sem 1 to 8):</span>
+          </div>
           {activeSemester !== student.semester && (
             <button
-              onClick={() => setActiveSemester(student.semester)}
-              className="text-blue-600 hover:text-blue-800 font-semibold"
+              onClick={() => handleSemesterChange(student.semester)}
+              className="text-blue-600 hover:text-blue-800 font-semibold self-start sm:self-auto"
             >
               Back to My Enrolled Semester ({student.semester}) →
             </button>
@@ -276,7 +386,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             return (
               <button
                 key={sem}
-                onClick={() => setActiveSemester(sem)}
+                onClick={() => handleSemesterChange(sem)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-blue-700 text-white shadow-sm'
@@ -302,9 +412,76 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             );
           })}
         </div>
+
+        {/* Dynamic Subject Select Option for Selected Semester */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+              📚 Subject Select Option (Semester {activeSemester}):
+            </span>
+            <select
+              value={selectedSubjectId}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ALL">All Subjects in Semester {activeSemester} ({semesterSubjects.length} courses)</option>
+              {semesterSubjects.map(sub => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.subjectName} ({sub.subjectCode})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedSubjectId !== 'ALL' && (
+            <button
+              onClick={() => setSelectedSubjectId('ALL')}
+              className="text-xs text-blue-700 hover:text-blue-900 font-bold self-start sm:self-auto bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
+            >
+              Show All Subjects (Reset Filter)
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Today's Lectures (Different Subjects, Different Attendance) */}
+      {/* MANDATORY ATTENDANCE VERIFICATION NOTICE BANNER */}
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-3xl p-5 shadow-sm space-y-2">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-2xl bg-blue-700 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
+                Official Attendance Verification Notice
+              </h4>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
+                2 Conditions Required
+              </span>
+            </div>
+            <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+              To mark attendance for any session, both conditions must be verified right:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-xs">
+              <div className="p-2.5 bg-white/80 rounded-xl border border-blue-100 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center">1</span>
+                <span className="font-bold text-slate-800">Condition 1: Code Number Right</span>
+                <span className="text-[11px] text-slate-500">(Enter active 6-digit session code)</span>
+              </div>
+              <div className="p-2.5 bg-white/80 rounded-xl border border-blue-100 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center">2</span>
+                <span className="font-bold text-slate-800">Condition 2: Location Match</span>
+                <span className="text-[11px] text-slate-500">(Same classroom location ≤ 100m)</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-2">
+              🔒 The <strong>Confirm Attendance</strong> button unlocks only after fulfilling both conditions. When fulfilled, attendance is successfully filled & Gmail alert is sent; otherwise an <strong>Unsuccessful Attendance</strong> popup appears.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Today's Lectures (Filtered by Semester & Subject Select Option) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
@@ -319,13 +496,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </p>
           </div>
           <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg self-start sm:self-auto">
-            Sem {activeSemester} {activeSemester === student.semester ? `(My Batch • Div ${student.division})` : `Sessions`}
+            Sem {activeSemester} {selectedSubjectId !== 'ALL' ? `• Filtered Subject` : `• All Subjects`}
           </span>
         </div>
 
-        {lectures.length === 0 ? (
+        {displayedLectures.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-xs">
-            No lectures scheduled for your batch today.
+            No lectures scheduled for {selectedSubjectId !== 'ALL' ? 'the selected subject in' : ''} Semester {activeSemester} today.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -341,7 +518,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {lectures.map((lec) => {
+                {displayedLectures.map((lec) => {
                   const alreadyMarked = attendance.find(a => 
                     a.lectureId === lec.id && (
                       a.studentId === student.id || 
@@ -392,7 +569,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                             className="px-3 py-1.5 font-bold rounded-lg text-xs transition shadow-sm bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-1.5 ml-auto"
                           >
                             <QrCode className="w-3.5 h-3.5" />
-                            SCAN 100M QR
+                            FILL ATTENDANCE
                           </button>
                         ) : (
                           <span className="text-slate-400 font-medium">SESSION CLOSED</span>
@@ -407,36 +584,102 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         )}
       </div>
 
-      {/* Subject-wise Attendance Analytics (Different Subjects, Different Attendance) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* Subject-wise Attendance Analytics (Filtered by Selected Semester & Subject) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Subject-wise Attendance Registry</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              Subject-wise Attendance Registry (Semester {activeSemester})
+            </h3>
             <p className="text-xs text-slate-500">
-              Each subject tracks attendance independently. Minimum 75% attendance required per subject.
+              Each subject tracks attendance independently. Minimum 75% attendance required per subject for exam eligibility.
             </p>
           </div>
+          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg self-start sm:self-auto">
+            Showing {filteredSubjectsWithStats.length} Course{filteredSubjectsWithStats.length === 1 ? '' : 's'}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjectsWithStats.map((sub) => (
-            <div key={sub.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/70 space-y-2">
+          {filteredSubjectsWithStats.map((sub) => (
+            <div key={sub.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hover:border-blue-300 transition">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 truncate pr-2">{sub.name}</span>
-                <span className={`text-xs font-black ${sub.pct >= 75 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                <span className="text-xs font-bold text-slate-800 truncate pr-2" title={sub.name}>{sub.name}</span>
+                <span className={`text-xs font-black px-2 py-0.5 rounded ${
+                  sub.pct >= 75 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
                   {sub.pct}%
                 </span>
               </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${sub.pct >= 75 ? 'bg-emerald-600' : 'bg-amber-500'}`}
+                  className={`h-full rounded-full transition-all duration-500 ${sub.pct >= 75 ? 'bg-emerald-600' : 'bg-rose-500'}`}
                   style={{ width: `${Math.max(sub.pct, 5)}%` }}
                 />
               </div>
               <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
-                <span className="font-mono text-slate-600">{sub.code}</span>
-                <span>{sub.present} / {sub.total} Attended</span>
+                <span className="font-mono text-slate-600 font-bold">{sub.code}</span>
+                <span className="font-semibold text-slate-700">{sub.present} / {sub.total} Attended</span>
               </div>
+              <div className="text-[10px] font-bold text-right pt-0.5">
+                {sub.pct >= 75 ? (
+                  <span className="text-emerald-700">✓ Exam Eligible</span>
+                ) : (
+                  <span className="text-rose-700">⚠️ Low Attendance Warning</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ALL 8 SEMESTERS PERFORMANCE & ATTENDANCE PERCENTAGE MATRIX */}
+      <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-400" />
+              <h3 className="text-lg font-black text-white">All Semesters Attendance Matrix (Sem 1 to 8)</h3>
+            </div>
+            <p className="text-xs text-blue-200/80 mt-1">
+              Consolidated attendance percentages across all academic semesters.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-2xl border border-white/15">
+            <span className="text-xs text-blue-200 font-medium">Cumulative Attendance:</span>
+            <span className={`text-base font-black ${
+              cumulativeAllPercentage >= 75 ? 'text-emerald-300' : 'text-amber-300'
+            }`}>
+              {cumulativeAllPercentage}%
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+          {allSemestersStats.map((st) => (
+            <div
+              key={st.semester}
+              onClick={() => handleSemesterChange(st.semester)}
+              className={`p-3 rounded-2xl border cursor-pointer transition text-center space-y-1.5 ${
+                activeSemester === st.semester
+                  ? 'bg-blue-600/40 border-blue-400 shadow-lg ring-2 ring-blue-400'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200 block">
+                Sem {st.semester}
+              </span>
+              <div className="text-base font-black text-white">
+                {st.percentage}%
+              </div>
+              <div className="text-[10px] text-blue-200/70">
+                {st.attended}/{st.conducted} classes
+              </div>
+              <span className={`inline-block text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                st.isEligible ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+              }`}>
+                {st.isEligible ? 'Eligible' : 'Shortage'}
+              </span>
             </div>
           ))}
         </div>

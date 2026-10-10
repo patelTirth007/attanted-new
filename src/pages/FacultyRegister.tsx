@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { User, Faculty } from '../types';
-import { ShieldCheck, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, ArrowRight, KeyRound, Sparkles } from 'lucide-react';
 
 interface FacultyRegisterProps {
   onSuccess: (user: User, faculty: Faculty) => void;
@@ -13,6 +13,7 @@ export const FacultyRegister: React.FC<FacultyRegisterProps> = ({ onSuccess, onB
   const [email, setEmail] = useState('');
   const [department, setDepartment] = useState('Information Technology');
   const [phone, setPhone] = useState('');
+  const [secretCode, setSecretCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,11 @@ export const FacultyRegister: React.FC<FacultyRegisterProps> = ({ onSuccess, onB
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (secretCode.trim() !== 'SSIT@1900') {
+      setError('Invalid Faculty Secret Security Code. Please enter the authorized college code "SSIT@1900" to complete registration.');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -31,7 +37,8 @@ export const FacultyRegister: React.FC<FacultyRegisterProps> = ({ onSuccess, onB
       email: email.trim(),
       department: department.trim(),
       phone: phone.trim(),
-      password
+      password,
+      secretCode: secretCode.trim()
     });
 
     if (!res.success || !res.user || !res.faculty) {
@@ -116,6 +123,37 @@ export const FacultyRegister: React.FC<FacultyRegisterProps> = ({ onSuccess, onB
               onChange={(e) => setPhone(e.target.value)}
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-600"
             />
+          </div>
+
+          {/* Faculty Secret Security Authorization Code Box */}
+          <div className="p-3.5 bg-purple-50/80 border-2 border-purple-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-purple-950 flex items-center gap-1.5">
+                <KeyRound className="w-4 h-4 text-purple-700" />
+                Faculty Secret Security Authorization Code *
+              </label>
+              <button
+                type="button"
+                onClick={() => setSecretCode('SSIT@1900')}
+                className="text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white px-2 py-0.5 rounded-lg border border-purple-200 transition flex items-center gap-1 shadow-xs"
+              >
+                <Sparkles className="w-3 h-3 text-purple-600" />
+                Fill SSIT@1900
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                placeholder="Enter secret code: SSIT@1900"
+                value={secretCode}
+                onChange={(e) => setSecretCode(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border border-purple-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-600 font-mono text-xs font-bold text-purple-900 tracking-wide"
+              />
+            </div>
+            <p className="text-[11px] text-purple-700/90 leading-tight">
+              🔐 <strong>Security Policy:</strong> Faculty registration requires the institutional authorization key (<strong>SSIT@1900</strong>). This secret code is tied to your administrative faculty panel.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">

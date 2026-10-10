@@ -27,6 +27,7 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [selectedSemester, setSelectedSemester] = useState<number | 'ALL'>(student.semester || 'ALL');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
 
@@ -40,27 +41,62 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
     setLectures(db.getAllLectures());
   }, [student, studentEmail]);
 
-  // Filter records by selected semester, status, and search query
+  // Distinct subjects available for selected semester
+  const allSubjects = db.getAllSubjects();
+  const availableSubjectsForSemester = selectedSemester === 'ALL'
+    ? allSubjects
+    : allSubjects.filter(s => s.semester === selectedSemester);
+
+  const handleSemesterSelect = (sem: number | 'ALL') => {
+    setSelectedSemester(sem);
+    setSelectedSubjectId('ALL');
+  };
+
+  // Filter records by selected semester, subject, status, and search query
   const filteredRecords = records.filter(rec => {
     const lecture = lectures.find(l => l.id === rec.lectureId);
     const matchesSemester = selectedSemester === 'ALL' || lecture?.semester === selectedSemester;
+    const matchesSubject = selectedSubjectId === 'ALL' || lecture?.subjectId === selectedSubjectId || lecture?.subjectCode === selectedSubjectId;
     const matchesStatus = statusFilter === 'ALL' || rec.status === statusFilter;
     const matchesSearch = !search ||
       rec.markedTimeStr.toLowerCase().includes(search.toLowerCase()) ||
       (lecture?.subjectName.toLowerCase().includes(search.toLowerCase()) ?? false) ||
       (lecture?.subjectCode.toLowerCase().includes(search.toLowerCase()) ?? false);
-    return matchesSemester && matchesStatus && matchesSearch;
+    return matchesSemester && matchesSubject && matchesStatus && matchesSearch;
   });
 
-  // Calculate statistics for the selected semester
+  // Calculate statistics for the selected semester & subject
   const semesterLectures = selectedSemester === 'ALL'
     ? lectures
     : lectures.filter(l => l.semester === selectedSemester);
 
-  const totalLecturesInScope = Math.max(semesterLectures.length, 1);
+  const scopeLectures = selectedSubjectId === 'ALL'
+    ? semesterLectures
+    : semesterLectures.filter(l => l.subjectId === selectedSubjectId || l.subjectCode === selectedSubjectId);
+
+  const totalLecturesInScope = Math.max(scopeLectures.length, 1);
   const attendedInScope = filteredRecords.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length;
   const percentageInScope = ((attendedInScope / totalLecturesInScope) * 100).toFixed(1);
   const isEligible = Number(percentageInScope) >= 75;
+
+  // Stats across all 8 semesters
+  const allSemestersStats = availableSemesters.map(sem => {
+    const semLecs = lectures.filter(l => l.semester === sem);
+    const semRecords = records.filter(r => {
+      const lec = lectures.find(l => l.id === r.lectureId);
+      return lec?.semester === sem;
+    });
+    const conducted = semLecs.length;
+    const attended = semRecords.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length;
+    const pct = conducted > 0 ? Math.round((attended / conducted) * 100) : 0;
+    return {
+      semester: sem,
+      conducted,
+      attended,
+      pct,
+      isEligible: pct >= 75
+    };
+  });
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -103,7 +139,7 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none">
           <button
-            onClick={() => setSelectedSemester('ALL')}
+            onClick={() => handleSemesterSelect('ALL')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
               selectedSemester === 'ALL'
                 ? 'bg-blue-700 text-white shadow-sm'
@@ -129,7 +165,7 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
             return (
               <button
                 key={sem}
-                onClick={() => setSelectedSemester(sem)}
+                onClick={() => handleSemesterSelect(sem)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-blue-700 text-white shadow-sm'
@@ -155,14 +191,50 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
             );
           })}
         </div>
+
+        {/* Dynamic Subject Select Option for Selected Semester */}
+        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-600">
+              📚 Subject Select Option:
+            </span>
+            <select
+              value={selectedSubjectId}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ALL">
+                {selectedSemester === 'ALL' ? 'All Subjects across All Semesters' : `All Subjects in Semester ${selectedSemester}`} ({availableSubjectsForSemester.length} courses)
+              </option>
+              {availableSubjectsForSemester.map(sub => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.subjectName} ({sub.subjectCode}) {selectedSemester === 'ALL' ? `[Sem ${sub.semester}]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedSubjectId !== 'ALL' && (
+            <button
+              onClick={() => setSelectedSubjectId('ALL')}
+              className="text-xs text-blue-700 hover:text-blue-900 font-bold self-start sm:self-auto bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
+            >
+              Show All Subjects in Semester
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Selected Semester Attendance Percentage Summary Card */}
+      {/* Selected Semester & Subject Attendance Percentage Summary Card */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">
-              {selectedSemester === 'ALL' ? 'Overall Attendance Across All Semesters' : `Semester ${selectedSemester} Performance`}
+              {selectedSemester === 'ALL' 
+                ? 'Overall Academic Attendance' 
+                : selectedSubjectId !== 'ALL'
+                ? `Semester ${selectedSemester} • Subject Performance`
+                : `Semester ${selectedSemester} Performance`}
             </span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
               isEligible ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
@@ -174,7 +246,7 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
             {percentageInScope}% Attendance Rate
           </h3>
           <p className="text-xs text-blue-200/80 mt-1">
-            Attended {attendedInScope} out of {totalLecturesInScope} sessions conducted in {selectedSemester === 'ALL' ? 'the academic year' : `Semester ${selectedSemester}`}.
+            Attended {attendedInScope} out of {totalLecturesInScope} sessions conducted in {selectedSemester === 'ALL' ? 'all semesters' : `Semester ${selectedSemester}`}{selectedSubjectId !== 'ALL' ? ' for this subject' : ''}.
           </p>
         </div>
 
@@ -195,6 +267,37 @@ export const StudentHistory: React.FC<StudentHistoryProps> = ({ student }) => {
               )}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* ALL SEMESTERS PERFORMANCE MATRIX */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-800">
+            📊 All Semesters Attendance Performance (Sem 1 to 8):
+          </span>
+          <span className="text-[11px] text-slate-500">
+            Click any semester to view subject records
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          {allSemestersStats.map(st => (
+            <div
+              key={st.semester}
+              onClick={() => handleSemesterSelect(st.semester)}
+              className={`p-2.5 rounded-xl border cursor-pointer text-center space-y-1 transition ${
+                selectedSemester === st.semester
+                  ? 'bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-400'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <span className="text-[10px] font-bold text-slate-500 block">Sem {st.semester}</span>
+              <div className="text-sm font-black text-slate-900">{st.pct}%</div>
+              <span className={`text-[9px] font-bold block ${st.isEligible ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {st.attended}/{st.conducted} classes
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

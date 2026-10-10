@@ -21,6 +21,14 @@ export interface Student {
   phone: string;
   faceEnrollmentStatus?: boolean;
   faceEmbedding?: string;
+  facePhotoUrl?: string;
+  deviceId?: string;
+  deviceName?: string;
+  deviceRegisteredAt?: number;
+  deviceVerified?: boolean;
+  ipAddress?: string;
+  ipRegisteredAt?: number;
+  allowOtherDevice?: boolean;
   createdAt: number;
 }
 
@@ -31,6 +39,8 @@ export interface Faculty {
   department: string;
   email: string;
   phone: string;
+  secretCode?: string;
+  isSecurityCodeVerified?: boolean;
 }
 
 export interface Subject {
@@ -106,6 +116,11 @@ export interface AttendanceRecord {
   faceVerified?: boolean;
   faceConfidence?: number;
   livenessVerified?: boolean;
+  deviceVerified?: boolean;
+  deviceMatched?: boolean;
+  deviceId?: string;
+  ipAddress?: string;
+  facePhotoSnapshot?: string;
   correctionReason?: string;
   correctedByFacultyId?: string;
   gmailNotificationSent?: boolean;

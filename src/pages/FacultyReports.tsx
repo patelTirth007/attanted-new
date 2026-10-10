@@ -24,7 +24,7 @@ export const FacultyReports: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
   const [selectedSemester, setSelectedSemester] = useState<number | 'ALL'>('ALL');
-  const [viewMode, setViewMode] = useState<'LECTURES' | 'SEMESTER_CONSOLIDATED'>('LECTURES');
+  const [viewMode, setViewMode] = useState<'LECTURES' | 'SEMESTER_CONSOLIDATED' | 'SUBJECTS_MATRIX'>('LECTURES');
 
   const [selectedLectureId, setSelectedLectureId] = useState<string>('');
   const [lectureRecords, setLectureRecords] = useState<AttendanceRecord[]>([]);
@@ -123,6 +123,29 @@ export const FacultyReports: React.FC = () => {
   const avgAttendancePercentage = studentMetrics.length > 0
     ? (studentMetrics.reduce((acc, curr) => acc + curr.percentage, 0) / studentMetrics.length).toFixed(1)
     : '0.0';
+
+  // Distinct subjects performance summary for active semester or all
+  const allSubjects = db.getAllSubjects();
+  const targetSubjects = selectedSemester === 'ALL'
+    ? allSubjects
+    : allSubjects.filter(s => s.semester === selectedSemester);
+
+  const subjectsSummary = targetSubjects.map(sub => {
+    const subLecs = lectures.filter(l => l.subjectId === sub.id || l.subjectCode === sub.subjectCode);
+    const subLecIds = subLecs.map(l => l.id);
+    const subRecords = allAttendance.filter(a => 
+      subLecIds.includes(a.lectureId) && (a.status === 'PRESENT' || a.status === 'LATE')
+    );
+    const possibleTotal = subLecs.length * (targetStudents.length || 1);
+    const pct = possibleTotal > 0 ? Math.round((subRecords.length / possibleTotal) * 100) : 0;
+    return {
+      subject: sub,
+      conducted: subLecs.length,
+      recordsCount: subRecords.length,
+      percentage: pct,
+      isGood: pct >= 75
+    };
+  });
 
   // Export handlers
   const handleExportLecture = () => {
@@ -287,8 +310,8 @@ export const FacultyReports: React.FC = () => {
         </div>
       </div>
 
-      {/* View Switcher: Lecture-Wise vs Consolidated Semester Sheet */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      {/* View Switcher: Lecture-Wise vs Consolidated Semester Sheet vs Subject Matrix */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
         <button
           onClick={() => setViewMode('LECTURES')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
@@ -309,6 +332,17 @@ export const FacultyReports: React.FC = () => {
           }`}
         >
           📊 Consolidated Semester Student Sheet ({targetStudents.length})
+        </button>
+
+        <button
+          onClick={() => setViewMode('SUBJECTS_MATRIX')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
+            viewMode === 'SUBJECTS_MATRIX'
+              ? 'bg-blue-700 text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          📈 Subject-Wise Attendance Rates ({subjectsSummary.length})
         </button>
       </div>
 
@@ -571,6 +605,93 @@ export const FacultyReports: React.FC = () => {
                             DEBARRED (&lt;75%)
                           </span>
                         )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: Subject-Wise Attendance Rates */}
+      {viewMode === 'SUBJECTS_MATRIX' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Subject Course Attendance Rates {selectedSemester !== 'ALL' ? `(Semester ${selectedSemester})` : `(All Semesters)`}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Comparative breakdown of conducted classes, attendance logs, and average student attendance percentages per course.
+              </p>
+            </div>
+            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg self-start sm:self-auto">
+              {subjectsSummary.length} Courses Cataloged
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3 px-3">Subject Code & Name</th>
+                  <th className="py-3 px-3">Semester</th>
+                  <th className="py-3 px-3">Department</th>
+                  <th className="py-3 px-3">Conducted Lectures</th>
+                  <th className="py-3 px-3">Total Attendances</th>
+                  <th className="py-3 px-3">Attendance Rate</th>
+                  <th className="py-3 px-3 text-right">Academic Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {subjectsSummary.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
+                      No courses found for the selected semester scope.
+                    </td>
+                  </tr>
+                ) : (
+                  subjectsSummary.map(({ subject, conducted, recordsCount, percentage, isGood }) => (
+                    <tr key={subject.id} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900">{subject.subjectName}</div>
+                        <span className="font-mono text-[10px] text-blue-700 font-bold">{subject.subjectCode}</span>
+                      </td>
+                      <td className="py-3 px-3 font-bold text-slate-700">
+                        Semester {subject.semester}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        {subject.department}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        {conducted} session{conducted !== 1 ? 's' : ''}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        {recordsCount} log{recordsCount !== 1 ? 's' : ''}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${isGood ? 'bg-emerald-600' : 'bg-amber-500'}`}
+                              style={{ width: `${Math.max(percentage, 5)}%` }}
+                            />
+                          </div>
+                          <span className={`font-black ${isGood ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {percentage}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
+                          isGood
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {isGood ? '✓ High Attendance (≥75%)' : '⚠️ Low Attendance (<75%)'}
+                        </span>
                       </td>
                     </tr>
                   ))
