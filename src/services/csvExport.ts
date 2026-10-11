@@ -126,3 +126,184 @@ export function exportSemesterAttendanceToCSV(
   document.body.removeChild(link);
 }
 
+export function exportAttendanceHistoryToCSV(
+  records: Array<{
+    studentName: string;
+    enrollmentNumber: string;
+    rollNumber: string;
+    studentEmail: string;
+    semester: number;
+    division: string;
+    subjectCode: string;
+    subjectName: string;
+    lectureNumber?: string | number;
+    lectureDate: string;
+    markedTimeStr: string;
+    status: string;
+    distanceMeters?: number;
+    deviceId?: string;
+    ipAddress?: string;
+    rejectionReason?: string;
+  }>,
+  filenamePrefix = 'Attendance_History_Report'
+): void {
+  const headers = [
+    'Student Name',
+    'Enrollment Number',
+    'Roll Number',
+    'Student Email',
+    'Semester',
+    'Class / Division',
+    'Subject Code',
+    'Subject Name',
+    'Lecture Number',
+    'Attendance Date',
+    'Attendance Time',
+    'Status',
+    'GPS Distance (Meters)',
+    'Registered Device ID',
+    'IP Address',
+    'Notes / Rejection Reason'
+  ];
+
+  const rows = records.map(r => [
+    `"${r.studentName}"`,
+    `"${r.enrollmentNumber}"`,
+    `"${r.rollNumber}"`,
+    `"${r.studentEmail || ''}"`,
+    `"Sem ${r.semester}"`,
+    `"${r.division}"`,
+    `"${r.subjectCode}"`,
+    `"${r.subjectName}"`,
+    `"${r.lectureNumber || 'N/A'}"`,
+    `"${r.lectureDate}"`,
+    `"${r.markedTimeStr}"`,
+    `"${r.status}"`,
+    r.distanceMeters !== undefined ? Math.round(r.distanceMeters) : '',
+    `"${r.deviceId || 'N/A'}"`,
+    `"${r.ipAddress || 'N/A'}"`,
+    `"${r.rejectionReason || 'Verified Normal'}"`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filenamePrefix}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export function exportSubjectWiseAttendanceToCSV(
+  summary: {
+    subjectName: string;
+    subjectCode: string;
+    semester: number;
+    division?: string;
+    thresholdPercent: number;
+    totalConductedLectures: number;
+    students: Array<{
+      studentName: string;
+      enrollmentNumber: string;
+      rollNumber: string;
+      studentEmail: string;
+      totalConductedLectures: number;
+      presentLectures: number;
+      absentLectures: number;
+      attendancePercentage: number;
+      attendanceStatus: string;
+    }>;
+  }
+): void {
+  const headers = [
+    'Subject Name',
+    'Subject Code',
+    'Semester',
+    'Class / Division',
+    'Roll Number',
+    'Enrollment Number',
+    'Student Name',
+    'Student Email',
+    'Conducted Lectures',
+    'Present Lectures',
+    'Absent Lectures',
+    'Attendance Percentage (%)',
+    'Attendance Status',
+    'Required Threshold (%)'
+  ];
+
+  const rows = summary.students.map(st => [
+    `"${summary.subjectName}"`,
+    `"${summary.subjectCode}"`,
+    `"Sem ${summary.semester}"`,
+    `"${summary.division || 'ALL'}"`,
+    `"${st.rollNumber}"`,
+    `"${st.enrollmentNumber}"`,
+    `"${st.studentName}"`,
+    `"${st.studentEmail || ''}"`,
+    st.totalConductedLectures,
+    st.presentLectures,
+    st.absentLectures,
+    `${st.attendancePercentage}%`,
+    `"${st.attendanceStatus}"`,
+    `${summary.thresholdPercent}%`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Subject_Attendance_${summary.subjectCode}_Sem${summary.semester}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export function exportSemesterSubjectSummaryToCSV(
+  semester: number,
+  division: string,
+  items: Array<{
+    subjectName: string;
+    subjectCode: string;
+    conductedLectures: number;
+    presentCount: number;
+    absentCount: number;
+    attendancePercentage: number;
+  }>
+): void {
+  const headers = [
+    'Semester',
+    'Class / Division',
+    'Subject Code',
+    'Subject Name',
+    'Conducted Lectures',
+    'Total Present',
+    'Total Absent',
+    'Class Attendance Percentage (%)'
+  ];
+
+  const rows = items.map(item => [
+    `"Sem ${semester}"`,
+    `"${division || 'ALL'}"`,
+    `"${item.subjectCode}"`,
+    `"${item.subjectName}"`,
+    item.conductedLectures,
+    item.presentCount,
+    item.absentCount,
+    `${item.attendancePercentage}%`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Semester_${semester}_Subjects_Attendance_Summary.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+

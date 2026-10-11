@@ -1,11 +1,13 @@
 import { 
-  User, Student, Faculty, Subject, Lecture, AttendanceRecord, CollegeSettings, AttendanceStatus 
+  User, Student, Faculty, Subject, Lecture, AttendanceRecord, CollegeSettings, AttendanceStatus,
+  SubjectAttendanceStudentMetric, SubjectAttendanceSummary, SemesterSubjectOverviewItem,
+  AttendanceHistoryItem, EnrollmentRegistryEntry
 } from '../types';
 import { notificationService } from './notificationService';
-import { generateStudentFaceSvg, getDeviceInfo } from './biometrics';
+import { generateStudentAvatarSvg, getDeviceInfo } from './biometrics';
 
 const STORAGE_KEYS = {
-  VERSION: 'sca_db_version_v11_biometric_ssit',
+  VERSION: 'sca_db_version_v14_semester_enrollment_mgmt',
   USERS: 'sca_users',
   STUDENTS: 'sca_students',
   FACULTY: 'sca_faculty',
@@ -13,7 +15,8 @@ const STORAGE_KEYS = {
   LECTURES: 'sca_lectures',
   ATTENDANCE: 'sca_attendance',
   SETTINGS: 'sca_settings',
-  AUTH: 'sca_active_session'
+  AUTH: 'sca_active_session',
+  REGISTRY: 'sca_enrollment_registry'
 };
 
 export function hashPassword(pass: string): string {
@@ -61,48 +64,58 @@ class DatabaseService {
 
     const users: User[] = [
       { id: 'u_fac_1', email: 'faculty@college.edu', passwordHash: fPass, role: 'FACULTY', createdAt: Date.now() },
-      { id: 'u_fac_2', email: 'admin@college.edu', passwordHash: aPass, role: 'FACULTY', createdAt: Date.now() },
+      { id: 'u_fac_2', email: 'ananya.sen@college.edu', passwordHash: fPass, role: 'FACULTY', createdAt: Date.now() },
+      { id: 'u_adm_1', email: 'admin@college.edu', passwordHash: aPass, role: 'ADMIN', createdAt: Date.now() },
       { id: 'u_stu_1', email: 'tirth0988@gmail.com', passwordHash: sPass, role: 'STUDENT', createdAt: Date.now() },
-      { id: 'u_stu_alt', email: 'tirthpatel1112005@gmail.com', passwordHash: sPass, role: 'STUDENT', createdAt: Date.now() },
       { id: 'u_stu_demo', email: 'student@college.edu', passwordHash: sPass, role: 'STUDENT', createdAt: Date.now() }
     ];
 
-    const facultyList: Faculty[] = [
-      { id: 'fac_1', userId: 'u_fac_1', name: 'Dr. Rajesh Sharma', department: 'Information Technology', email: 'faculty@college.edu', phone: '+91 98765 43210', secretCode: 'SSIT@1900', isSecurityCodeVerified: true },
-      { id: 'fac_2', userId: 'u_fac_2', name: 'Prof. Ananya Sen', department: 'Computer Science', email: 'admin@college.edu', phone: '+91 98765 43211', secretCode: 'SSIT@1900', isSecurityCodeVerified: true }
+    const faculty: Faculty[] = [
+      {
+        id: 'fac_1',
+        userId: 'u_fac_1',
+        name: 'Dr. Rajesh Sharma',
+        department: 'Information Technology',
+        email: 'faculty@college.edu',
+        phone: '+91 98250 12345',
+        secretCode: 'FAC-IT-2025-SECURE',
+        isSecurityCodeVerified: true
+      },
+      {
+        id: 'fac_2',
+        userId: 'u_fac_2',
+        name: 'Prof. Ananya Sen',
+        department: 'Information Technology',
+        email: 'ananya.sen@college.edu',
+        phone: '+91 98250 67890',
+        secretCode: 'FAC-IT-2025-SECURE',
+        isSecurityCodeVerified: true
+      }
     ];
 
-    // 3. Different Subjects across All Semesters (Sem 1 to Sem 8)
+    // 3. Subjects Across Multiple Semesters (1 through 8)
     const subjects: Subject[] = [
-      // Semester 1
       { id: 'sub_sem1_1', subjectCode: '3110003', subjectName: 'Programming in C & Problem Solving', semester: 1, department: 'Information Technology' },
       { id: 'sub_sem1_2', subjectCode: '3110014', subjectName: 'Engineering Mathematics-I', semester: 1, department: 'Information Technology' },
-      // Semester 2
       { id: 'sub_sem2_1', subjectCode: '3120002', subjectName: 'Advanced C Programming & OOP', semester: 2, department: 'Information Technology' },
       { id: 'sub_sem2_2', subjectCode: '3120015', subjectName: 'Engineering Mathematics-II', semester: 2, department: 'Information Technology' },
-      // Semester 3
       { id: 'sub_sem3_1', subjectCode: '3130702', subjectName: 'Data Structures & Algorithms-I', semester: 3, department: 'Information Technology' },
       { id: 'sub_sem3_2', subjectCode: '3130704', subjectName: 'Digital Fundamentals & Logic Design', semester: 3, department: 'Information Technology' },
-      // Semester 4
       { id: 'sub_sem4_1', subjectCode: '3140702', subjectName: 'Operating Systems & System Programming', semester: 4, department: 'Information Technology' },
       { id: 'sub_sem4_2', subjectCode: '3140708', subjectName: 'Object Oriented Programming with Java', semester: 4, department: 'Information Technology' },
-      // Semester 5
       { id: 'sub_1', subjectCode: '3150703', subjectName: 'Data Structures & Algorithms', semester: 5, department: 'Information Technology' },
       { id: 'sub_2', subjectCode: '3150704', subjectName: 'Database Management Systems', semester: 5, department: 'Information Technology' },
-      { id: 'sub_3', subjectCode: '3150710', subjectName: 'Computer Networks', semester: 5, department: 'Information Technology' },
+      { id: 'sub_3', subjectCode: '3150709', subjectName: 'Computer Networks', semester: 5, department: 'Information Technology' },
       { id: 'sub_4', subjectCode: '3150711', subjectName: 'Software Engineering', semester: 5, department: 'Information Technology' },
-      // Semester 6
-      { id: 'sub_sem6_1', subjectCode: '3160701', subjectName: 'Web Technology & Modern Frameworks', semester: 6, department: 'Information Technology' },
-      { id: 'sub_sem6_2', subjectCode: '3160704', subjectName: 'Cryptography & Network Security', semester: 6, department: 'Information Technology' },
-      // Semester 7
-      { id: 'sub_sem7_1', subjectCode: '3170716', subjectName: 'Artificial Intelligence & Machine Learning', semester: 7, department: 'Information Technology' },
-      { id: 'sub_sem7_2', subjectCode: '3170720', subjectName: 'Cloud Computing & DevOps', semester: 7, department: 'Information Technology' },
-      // Semester 8
-      { id: 'sub_sem8_1', subjectCode: '3180701', subjectName: 'Big Data Analytics & Data Science', semester: 8, department: 'Information Technology' },
-      { id: 'sub_sem8_2', subjectCode: '3180705', subjectName: 'Major Industry Capstone Project', semester: 8, department: 'Information Technology' }
+      { id: 'sub_sem6_1', subjectCode: '3160701', subjectName: 'Software Engineering & Agile Methodologies', semester: 6, department: 'Information Technology' },
+      { id: 'sub_sem6_2', subjectCode: '3160704', subjectName: 'Theory of Computation & Automata', semester: 6, department: 'Information Technology' },
+      { id: 'sub_sem7_1', subjectCode: '3170701', subjectName: 'Information & Network Security', semester: 7, department: 'Information Technology' },
+      { id: 'sub_sem7_2', subjectCode: '3170710', subjectName: 'Cloud Infrastructure & Virtualization', semester: 7, department: 'Information Technology' },
+      { id: 'sub_sem8_1', subjectCode: '3180701', subjectName: 'Artificial Intelligence & Machine Learning', semester: 8, department: 'Information Technology' },
+      { id: 'sub_sem8_2', subjectCode: '3180703', subjectName: 'Major Capstone Project & Internship', semester: 8, department: 'Information Technology' }
     ];
 
-    // 4. Initial Student Accounts with registered Email IDs and Biometric Face & Device Records
+    // 4. Initial Student Accounts with registered Email IDs and Device Records
     const students: Student[] = [
       {
         id: 'stu_1',
@@ -115,8 +128,7 @@ class DatabaseService {
         division: 'A',
         rollNumber: '01',
         phone: '+91 91234 56789',
-        faceEnrollmentStatus: true,
-        facePhotoUrl: generateStudentFaceSvg('Tirth Patel', '23IT001'),
+        avatarUrl: generateStudentAvatarSvg('Tirth Patel', '23IT001'),
         deviceId: 'DEV-SSIT-TP01-W11',
         deviceName: 'Student Device (Chrome on Windows)',
         ipAddress: '192.168.101.45',
@@ -136,8 +148,7 @@ class DatabaseService {
         division: 'A',
         rollNumber: '02',
         phone: '+91 98765 12345',
-        faceEnrollmentStatus: true,
-        facePhotoUrl: generateStudentFaceSvg('Aarav Patel', '21IT001'),
+        avatarUrl: generateStudentAvatarSvg('Aarav Patel', '21IT001'),
         deviceId: 'DEV-SSIT-AP02-MAC',
         deviceName: 'Student Laptop (MacBook Pro)',
         ipAddress: '192.168.101.52',
@@ -173,7 +184,8 @@ class DatabaseService {
         geofenceRadiusMeters: 100,
         qrSessionToken: 'QR-PROG-100M-519201',
         qrPasscode: '519201',
-        qrGeneratedAt: Date.now()
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 01'
       },
       // Semester 3 Lecture
       {
@@ -197,7 +209,8 @@ class DatabaseService {
         geofenceRadiusMeters: 100,
         qrSessionToken: 'QR-DS1-100M-429103',
         qrPasscode: '429103',
-        qrGeneratedAt: Date.now()
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 01'
       },
       // Semester 5 Lectures
       {
@@ -221,7 +234,8 @@ class DatabaseService {
         geofenceRadiusMeters: 100,
         qrSessionToken: 'QR-DSA-100M-849201',
         qrPasscode: '849201',
-        qrGeneratedAt: Date.now()
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 01'
       },
       {
         id: 'lec_2',
@@ -244,7 +258,8 @@ class DatabaseService {
         geofenceRadiusMeters: 100,
         qrSessionToken: 'QR-DBMS-100M-631094',
         qrPasscode: '631094',
-        qrGeneratedAt: Date.now()
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 02'
       },
       {
         id: 'lec_3',
@@ -252,22 +267,23 @@ class DatabaseService {
         facultyId: 'fac_1',
         facultyName: 'Dr. Rajesh Sharma',
         subjectName: 'Computer Networks',
-        subjectCode: '3150710',
+        subjectCode: '3150709',
         semester: 5,
         division: 'A',
-        room: 'Networking Lab 204',
+        room: 'Network Lab 204',
         date: today,
         startTime: '11:30 AM',
         endTime: '12:30 PM',
         attendanceStart: '11:30 AM',
-        attendanceEnd: '11:59 PM',
-        status: 'ACTIVE',
-        facultyLatitude: 23.21520,
-        facultyLongitude: 72.63650,
+        attendanceEnd: '12:30 PM',
+        status: 'UPCOMING',
+        facultyLatitude: 23.21562,
+        facultyLongitude: 72.63692,
         geofenceRadiusMeters: 100,
-        qrSessionToken: 'QR-CN-100M-719542',
-        qrPasscode: '719542',
-        qrGeneratedAt: Date.now()
+        qrSessionToken: 'QR-CN-100M-194820',
+        qrPasscode: '194820',
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 03'
       },
       // Semester 7 Lecture
       {
@@ -275,124 +291,107 @@ class DatabaseService {
         subjectId: 'sub_sem7_1',
         facultyId: 'fac_1',
         facultyName: 'Dr. Rajesh Sharma',
-        subjectName: 'Artificial Intelligence & Machine Learning',
-        subjectCode: '3170716',
+        subjectName: 'Information & Network Security',
+        subjectCode: '3170701',
         semester: 7,
         division: 'A',
-        room: 'Seminar Hall 401',
+        room: 'Cyber Security Lab 401',
         date: today,
-        startTime: '01:30 PM',
-        endTime: '02:30 PM',
-        attendanceStart: '01:30 PM',
+        startTime: '02:00 PM',
+        endTime: '03:00 PM',
+        attendanceStart: '02:00 PM',
         attendanceEnd: '11:59 PM',
         status: 'ACTIVE',
         facultyLatitude: 23.21562,
         facultyLongitude: 72.63692,
         geofenceRadiusMeters: 100,
-        qrSessionToken: 'QR-AIML-100M-918204',
-        qrPasscode: '918204',
-        qrGeneratedAt: Date.now()
+        qrSessionToken: 'QR-SEC-100M-719302',
+        qrPasscode: '719302',
+        qrGeneratedAt: Date.now(),
+        lectureNumber: 'Lecture 01'
       }
     ];
 
-    const attendance: AttendanceRecord[] = [];
+    // 6. Realistic Attendance Records
+    const attendance: AttendanceRecord[] = [
+      {
+        id: 'att_seed_1',
+        lectureId: 'lec_1',
+        studentId: 'stu_1',
+        studentEmail: 'tirth0988@gmail.com',
+        studentName: 'Tirth Patel',
+        rollNumber: '01',
+        enrollmentNumber: '23IT001',
+        status: 'PRESENT',
+        markedAt: Date.now() - 3600000,
+        markedTimeStr: '09:05 AM',
+        latitude: 23.21564,
+        longitude: 72.63694,
+        gpsAccuracy: 6.2,
+        distanceMeters: 4.8,
+        facultyDistanceMeters: 4.8,
+        verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+        qrVerified: true,
+        deviceVerified: true,
+        deviceMatched: true,
+        deviceId: 'DEV-SSIT-TP01-W11',
+        ipAddress: '192.168.101.45',
+        gmailNotificationSent: true,
+        createdAt: Date.now() - 3600000,
+        updatedAt: Date.now() - 3600000
+      }
+    ];
 
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
-    localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+    localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(faculty));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
     localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(lectures));
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
-    localStorage.setItem(STORAGE_KEYS.VERSION, 'clean_v8_semesters');
+    localStorage.setItem(STORAGE_KEYS.VERSION, '1.2');
   }
 
   /**
-   * Completely purges all placeholder/demo records for 100% original college data insertion.
-   * Keeps active faculty accounts so admin login remains seamless.
-   */
-  public purgeAllDemoData() {
-    const fPass = hashPassword('faculty123');
-    const existingFacultyUsers = this.getFacultyUsers();
-    
-    // Keep registered faculty accounts, or fallback to default admin
-    const users: User[] = existingFacultyUsers.length > 0 
-      ? existingFacultyUsers 
-      : [{ id: 'u_fac_1', email: 'faculty@college.edu', passwordHash: fPass, role: 'FACULTY', createdAt: Date.now() }];
-
-    const facultyList = this.getAllFaculty();
-    const cleanFaculty: Faculty[] = facultyList.length > 0 
-      ? facultyList 
-      : [{ id: 'fac_1', userId: 'u_fac_1', name: 'Faculty Administrator', department: 'Academic Department', email: 'faculty@college.edu', phone: '' }];
-
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(cleanFaculty));
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.VERSION, 'pure_original_v5');
-  }
-
-  public hasDemoData(): boolean {
-    const students = this.getAllStudents();
-    return students.some(s => s.id === 'stu_1' && s.enrollmentNumber === '23IT001' && s.name === 'Tirth Patel');
-  }
-
-  constructor() {
-    this.resetToCleanOriginalData();
-    this.ensureBaselineAccounts();
-  }
-
-  /**
-   * Guarantees that baseline faculty & student accounts exist and match real credentials,
-   * even if an older localStorage cache version is present in the browser.
+   * Ensures essential accounts exist in storage without overwriting user data.
    */
   public ensureBaselineAccounts() {
     try {
-      const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-      const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-      const faculty: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
-
+      let users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+      let students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+      let faculty: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
       let usersChanged = false;
       let studentsChanged = false;
       let facultyChanged = false;
 
-      const sPass = hashPassword('student123');
       const fPass = hashPassword('faculty123');
+      const aPass = hashPassword('admin123');
+      const sPass = hashPassword('student123');
 
-      // 1. Ensure faculty account: faculty@college.edu
-      // 1. Ensure faculty accounts with secretCode SSIT@1900
+      // 1. Ensure faculty account
       if (!users.some(u => u.email.toLowerCase() === 'faculty@college.edu')) {
         users.push({ id: 'u_fac_1', email: 'faculty@college.edu', passwordHash: fPass, role: 'FACULTY', createdAt: Date.now() });
         usersChanged = true;
       }
-      const existingFac = faculty.find(f => f.email.toLowerCase() === 'faculty@college.edu');
-      if (!existingFac) {
-        faculty.push({ id: 'fac_1', userId: 'u_fac_1', name: 'Dr. Rajesh Sharma', department: 'Information Technology', email: 'faculty@college.edu', phone: '+91 98765 43210', secretCode: 'SSIT@1900', isSecurityCodeVerified: true });
+      if (!faculty.some(f => f.email.toLowerCase() === 'faculty@college.edu')) {
+        faculty.push({
+          id: 'fac_1',
+          userId: 'u_fac_1',
+          name: 'Dr. Rajesh Sharma',
+          department: 'Information Technology',
+          email: 'faculty@college.edu',
+          phone: '+91 98250 12345',
+          secretCode: 'FAC-IT-2025-SECURE',
+          isSecurityCodeVerified: true
+        });
         facultyChanged = true;
-      } else {
-        if (!existingFac.secretCode) {
-          existingFac.secretCode = 'SSIT@1900';
-          existingFac.isSecurityCodeVerified = true;
-          facultyChanged = true;
-        }
       }
 
-      // Also ensure all faculty have secretCode SSIT@1900
-      faculty.forEach(f => {
-        if (!f.secretCode) {
-          f.secretCode = 'SSIT@1900';
-          f.isSecurityCodeVerified = true;
-          facultyChanged = true;
-        }
-      });
-
-      // 2. Ensure student account: student@college.edu (Aarav Patel / 21IT001)
+      // 2. Ensure demo student account: student@college.edu
       if (!users.some(u => u.email.toLowerCase() === 'student@college.edu')) {
         users.push({ id: 'u_stu_demo', email: 'student@college.edu', passwordHash: sPass, role: 'STUDENT', createdAt: Date.now() });
         usersChanged = true;
       }
-      if (!students.some(s => s.email?.toLowerCase() === 'student@college.edu')) {
+      if (!students.some(s => s.enrollmentNumber.toUpperCase() === '21IT001')) {
         students.push({
           id: 'stu_demo_1',
           userId: 'u_stu_demo',
@@ -404,8 +403,7 @@ class DatabaseService {
           division: 'A',
           rollNumber: '02',
           phone: '+91 98765 12345',
-          faceEnrollmentStatus: true,
-          facePhotoUrl: generateStudentFaceSvg('Aarav Patel', '21IT001'),
+          avatarUrl: generateStudentAvatarSvg('Aarav Patel', '21IT001'),
           deviceId: 'DEV-SSIT-AP02-MAC',
           deviceName: 'Student Laptop (MacBook Pro)',
           deviceVerified: true,
@@ -427,9 +425,7 @@ class DatabaseService {
           existing23IT001.email = 'tirth0988@gmail.com';
           studentsChanged = true;
         }
-        if (!existing23IT001.facePhotoUrl) {
-          existing23IT001.facePhotoUrl = generateStudentFaceSvg(existing23IT001.name, '23IT001');
-          existing23IT001.faceEnrollmentStatus = true;
+        if (!existing23IT001.deviceId) {
           existing23IT001.deviceId = 'DEV-SSIT-TP01-W11';
           existing23IT001.deviceName = 'Student Device (Chrome on Windows)';
           existing23IT001.ipAddress = '192.168.101.45';
@@ -449,8 +445,7 @@ class DatabaseService {
           division: 'A',
           rollNumber: '01',
           phone: '+91 91234 56789',
-          faceEnrollmentStatus: true,
-          facePhotoUrl: generateStudentFaceSvg('Tirth Patel', '23IT001'),
+          avatarUrl: generateStudentAvatarSvg('Tirth Patel', '23IT001'),
           deviceId: 'DEV-SSIT-TP01-W11',
           deviceName: 'Student Device (Chrome on Windows)',
           ipAddress: '192.168.101.45',
@@ -462,12 +457,11 @@ class DatabaseService {
         studentsChanged = true;
       }
 
-      // Ensure all students have facePhotoUrl, device info, and IP address
+      // Ensure all students have device info and IP address
       students.forEach(s => {
         let changed = false;
-        if (!s.facePhotoUrl) {
-          s.facePhotoUrl = generateStudentFaceSvg(s.name, s.enrollmentNumber);
-          s.faceEnrollmentStatus = true;
+        if (!s.avatarUrl) {
+          s.avatarUrl = generateStudentAvatarSvg(s.name, s.enrollmentNumber);
           changed = true;
         }
         if (!s.deviceId) {
@@ -492,7 +486,16 @@ class DatabaseService {
       if (facultyChanged) localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(faculty));
 
       // 4. Ensure Subjects exist for all semesters 1 through 8
-      const currentSubjects: Subject[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+      const rawSubjects: Subject[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+      const seenExistingIds = new Set<string>();
+      const currentSubjects: Subject[] = [];
+      for (const s of rawSubjects) {
+        if (s && s.id && !seenExistingIds.has(s.id)) {
+          seenExistingIds.add(s.id);
+          currentSubjects.push(s);
+        }
+      }
+
       const baselineSemesterSubjects: Subject[] = [
         { id: 'sub_sem1_1', subjectCode: '3110003', subjectName: 'Programming in C & Problem Solving', semester: 1, department: 'Information Technology' },
         { id: 'sub_sem1_2', subjectCode: '3110014', subjectName: 'Engineering Mathematics-I', semester: 1, department: 'Information Technology' },
@@ -504,206 +507,1118 @@ class DatabaseService {
         { id: 'sub_sem4_2', subjectCode: '3140708', subjectName: 'Object Oriented Programming with Java', semester: 4, department: 'Information Technology' },
         { id: 'sub_1', subjectCode: '3150703', subjectName: 'Data Structures & Algorithms', semester: 5, department: 'Information Technology' },
         { id: 'sub_2', subjectCode: '3150704', subjectName: 'Database Management Systems', semester: 5, department: 'Information Technology' },
-        { id: 'sub_3', subjectCode: '3150710', subjectName: 'Computer Networks', semester: 5, department: 'Information Technology' },
+        { id: 'sub_3', subjectCode: '3150709', subjectName: 'Computer Networks', semester: 5, department: 'Information Technology' },
         { id: 'sub_4', subjectCode: '3150711', subjectName: 'Software Engineering', semester: 5, department: 'Information Technology' },
-        { id: 'sub_sem6_1', subjectCode: '3160701', subjectName: 'Web Technology & Modern Frameworks', semester: 6, department: 'Information Technology' },
-        { id: 'sub_sem6_2', subjectCode: '3160704', subjectName: 'Cryptography & Network Security', semester: 6, department: 'Information Technology' },
-        { id: 'sub_sem7_1', subjectCode: '3170716', subjectName: 'Artificial Intelligence & Machine Learning', semester: 7, department: 'Information Technology' },
-        { id: 'sub_sem7_2', subjectCode: '3170720', subjectName: 'Cloud Computing & DevOps', semester: 7, department: 'Information Technology' },
-        { id: 'sub_sem8_1', subjectCode: '3180701', subjectName: 'Big Data Analytics & Data Science', semester: 8, department: 'Information Technology' },
-        { id: 'sub_sem8_2', subjectCode: '3180705', subjectName: 'Major Industry Capstone Project', semester: 8, department: 'Information Technology' }
+        { id: 'sub_sem6_1', subjectCode: '3160701', subjectName: 'Software Engineering & Agile Methodologies', semester: 6, department: 'Information Technology' },
+        { id: 'sub_sem6_2', subjectCode: '3160704', subjectName: 'Theory of Computation & Automata', semester: 6, department: 'Information Technology' },
+        { id: 'sub_sem7_1', subjectCode: '3170701', subjectName: 'Information & Network Security', semester: 7, department: 'Information Technology' },
+        { id: 'sub_sem7_2', subjectCode: '3170710', subjectName: 'Cloud Infrastructure & Virtualization', semester: 7, department: 'Information Technology' },
+        { id: 'sub_sem8_1', subjectCode: '3180701', subjectName: 'Artificial Intelligence & Machine Learning', semester: 8, department: 'Information Technology' },
+        { id: 'sub_sem8_2', subjectCode: '3180703', subjectName: 'Major Capstone Project & Internship', semester: 8, department: 'Information Technology' }
       ];
 
-      let subjectsUpdated = false;
-      for (const bSub of baselineSemesterSubjects) {
-        if (!currentSubjects.some(s => s.subjectCode === bSub.subjectCode || s.id === bSub.id)) {
-          currentSubjects.push(bSub);
-          subjectsUpdated = true;
+      let subjectsChanged = currentSubjects.length !== rawSubjects.length;
+      for (const baseSub of baselineSemesterSubjects) {
+        if (!currentSubjects.some(s => s.id === baseSub.id || (s.subjectCode && s.subjectCode.toUpperCase() === baseSub.subjectCode.toUpperCase()))) {
+          currentSubjects.push(baseSub);
+          subjectsChanged = true;
         }
       }
-      if (subjectsUpdated) {
+      if (subjectsChanged) {
         localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(currentSubjects));
       }
+
+      // 5. Ensure dedicated students for all 8 semesters for realistic separate rosters
+      const allSemestersStudents: Student[] = [
+        // Semester 1
+        {
+          id: 'stu_sem1_1',
+          userId: 'u_stu_sem1_1',
+          email: 'aadi.joshi@college.edu',
+          enrollmentNumber: '25IT001',
+          name: 'Aadi Joshi',
+          department: 'Information Technology',
+          semester: 1,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98111 11001',
+          avatarUrl: generateStudentAvatarSvg('Aadi Joshi', '25IT001'),
+          deviceId: 'DEV-SSIT-AJ01-SM1',
+          deviceName: 'Student Phone (Android)',
+          ipAddress: '192.168.101.11',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem1_2',
+          userId: 'u_stu_sem1_2',
+          email: 'bhavya.patel@college.edu',
+          enrollmentNumber: '25IT002',
+          name: 'Bhavya Patel',
+          department: 'Information Technology',
+          semester: 1,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98111 11002',
+          avatarUrl: generateStudentAvatarSvg('Bhavya Patel', '25IT002'),
+          deviceId: 'DEV-SSIT-BP02-SM1',
+          deviceName: 'Student Phone (iPhone)',
+          ipAddress: '192.168.101.12',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem1_3',
+          userId: 'u_stu_sem1_3',
+          email: 'chirag.vyas@college.edu',
+          enrollmentNumber: '25IT003',
+          name: 'Chirag Vyas',
+          department: 'Information Technology',
+          semester: 1,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98111 11003',
+          avatarUrl: generateStudentAvatarSvg('Chirag Vyas', '25IT003'),
+          deviceId: 'DEV-SSIT-CV03-SM1',
+          deviceName: 'Student Phone (Pixel)',
+          ipAddress: '192.168.101.13',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 2
+        {
+          id: 'stu_sem2_1',
+          userId: 'u_stu_sem2_1',
+          email: 'dhyan.shah@college.edu',
+          enrollmentNumber: '25IT011',
+          name: 'Dhyan Shah',
+          department: 'Information Technology',
+          semester: 2,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98222 22001',
+          avatarUrl: generateStudentAvatarSvg('Dhyan Shah', '25IT011'),
+          deviceId: 'DEV-SSIT-DS11-SM2',
+          deviceName: 'Student Phone (Samsung Galaxy)',
+          ipAddress: '192.168.101.21',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem2_2',
+          userId: 'u_stu_sem2_2',
+          email: 'ekta.mehta@college.edu',
+          enrollmentNumber: '25IT012',
+          name: 'Ekta Mehta',
+          department: 'Information Technology',
+          semester: 2,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98222 22002',
+          avatarUrl: generateStudentAvatarSvg('Ekta Mehta', '25IT012'),
+          deviceId: 'DEV-SSIT-EM12-SM2',
+          deviceName: 'Student Phone (OnePlus)',
+          ipAddress: '192.168.101.22',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem2_3',
+          userId: 'u_stu_sem2_3',
+          email: 'faisal.khan@college.edu',
+          enrollmentNumber: '25IT013',
+          name: 'Faisal Khan',
+          department: 'Information Technology',
+          semester: 2,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98222 22003',
+          avatarUrl: generateStudentAvatarSvg('Faisal Khan', '25IT013'),
+          deviceId: 'DEV-SSIT-FK13-SM2',
+          deviceName: 'Student Phone (Xiaomi)',
+          ipAddress: '192.168.101.23',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 3
+        {
+          id: 'stu_sem3_1',
+          userId: 'u_stu_sem3_1',
+          email: 'gaurav.dave@college.edu',
+          enrollmentNumber: '24IT001',
+          name: 'Gaurav Dave',
+          department: 'Information Technology',
+          semester: 3,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98333 33001',
+          avatarUrl: generateStudentAvatarSvg('Gaurav Dave', '24IT001'),
+          deviceId: 'DEV-SSIT-GD01-SM3',
+          deviceName: 'Student Phone (Motorola)',
+          ipAddress: '192.168.101.31',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem3_2',
+          userId: 'u_stu_sem3_2',
+          email: 'harshita.nair@college.edu',
+          enrollmentNumber: '24IT002',
+          name: 'Harshita Nair',
+          department: 'Information Technology',
+          semester: 3,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98333 33002',
+          avatarUrl: generateStudentAvatarSvg('Harshita Nair', '24IT002'),
+          deviceId: 'DEV-SSIT-HN02-SM3',
+          deviceName: 'Student Phone (iPhone 14)',
+          ipAddress: '192.168.101.32',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem3_3',
+          userId: 'u_stu_sem3_3',
+          email: 'ishan.sharma@college.edu',
+          enrollmentNumber: '24IT003',
+          name: 'Ishan Sharma',
+          department: 'Information Technology',
+          semester: 3,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98333 33003',
+          avatarUrl: generateStudentAvatarSvg('Ishan Sharma', '24IT003'),
+          deviceId: 'DEV-SSIT-IS03-SM3',
+          deviceName: 'Student Phone (Realme)',
+          ipAddress: '192.168.101.33',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 4
+        {
+          id: 'stu_sem4_1',
+          userId: 'u_stu_sem4_1',
+          email: 'janvi.trivedi@college.edu',
+          enrollmentNumber: '24IT011',
+          name: 'Janvi Trivedi',
+          department: 'Information Technology',
+          semester: 4,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98444 44001',
+          avatarUrl: generateStudentAvatarSvg('Janvi Trivedi', '24IT011'),
+          deviceId: 'DEV-SSIT-JT11-SM4',
+          deviceName: 'Student Phone (Vivo)',
+          ipAddress: '192.168.101.41',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem4_2',
+          userId: 'u_stu_sem4_2',
+          email: 'kavya.bhatt@college.edu',
+          enrollmentNumber: '24IT012',
+          name: 'Kavya Bhatt',
+          department: 'Information Technology',
+          semester: 4,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98444 44002',
+          avatarUrl: generateStudentAvatarSvg('Kavya Bhatt', '24IT012'),
+          deviceId: 'DEV-SSIT-KB12-SM4',
+          deviceName: 'Student Phone (Oppo)',
+          ipAddress: '192.168.101.42',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem4_3',
+          userId: 'u_stu_sem4_3',
+          email: 'lucky.patel@college.edu',
+          enrollmentNumber: '24IT013',
+          name: 'Lucky Patel',
+          department: 'Information Technology',
+          semester: 4,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98444 44003',
+          avatarUrl: generateStudentAvatarSvg('Lucky Patel', '24IT013'),
+          deviceId: 'DEV-SSIT-LP13-SM4',
+          deviceName: 'Student Phone (Samsung)',
+          ipAddress: '192.168.101.43',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 5 (Existing cohort)
+        {
+          id: 'stu_3',
+          userId: 'u_stu_3',
+          email: 'diya.sharma@college.edu',
+          enrollmentNumber: '23IT003',
+          name: 'Diya Sharma',
+          department: 'Information Technology',
+          semester: 5,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98222 33445',
+          avatarUrl: generateStudentAvatarSvg('Diya Sharma', '23IT003'),
+          deviceId: 'DEV-SSIT-DS03-IPHONE',
+          deviceName: 'Student Device (iPhone 15)',
+          ipAddress: '192.168.101.88',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_4',
+          userId: 'u_stu_4',
+          email: 'rohan.desai@college.edu',
+          enrollmentNumber: '23IT004',
+          name: 'Rohan Desai',
+          department: 'Information Technology',
+          semester: 5,
+          division: 'A',
+          rollNumber: '04',
+          phone: '+91 97111 55667',
+          avatarUrl: generateStudentAvatarSvg('Rohan Desai', '23IT004'),
+          deviceId: 'DEV-SSIT-RD04-PIXEL',
+          deviceName: 'Student Device (Google Pixel 8)',
+          ipAddress: '192.168.101.92',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_5',
+          userId: 'u_stu_5',
+          email: 'pooja.mehta@college.edu',
+          enrollmentNumber: '23IT005',
+          name: 'Pooja Mehta',
+          department: 'Information Technology',
+          semester: 5,
+          division: 'A',
+          rollNumber: '05',
+          phone: '+91 96333 77889',
+          avatarUrl: generateStudentAvatarSvg('Pooja Mehta', '23IT005'),
+          deviceId: 'DEV-SSIT-PM05-SAMS',
+          deviceName: 'Student Device (Samsung Galaxy S24)',
+          ipAddress: '192.168.101.99',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 6
+        {
+          id: 'stu_sem6_1',
+          userId: 'u_stu_sem6_1',
+          email: 'manan.gandhi@college.edu',
+          enrollmentNumber: '23IT011',
+          name: 'Manan Gandhi',
+          department: 'Information Technology',
+          semester: 6,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98666 66001',
+          avatarUrl: generateStudentAvatarSvg('Manan Gandhi', '23IT011'),
+          deviceId: 'DEV-SSIT-MG11-SM6',
+          deviceName: 'Student Phone (Nothing Phone 2)',
+          ipAddress: '192.168.101.61',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem6_2',
+          userId: 'u_stu_sem6_2',
+          email: 'nisha.rawal@college.edu',
+          enrollmentNumber: '23IT012',
+          name: 'Nisha Rawal',
+          department: 'Information Technology',
+          semester: 6,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98666 66002',
+          avatarUrl: generateStudentAvatarSvg('Nisha Rawal', '23IT012'),
+          deviceId: 'DEV-SSIT-NR12-SM6',
+          deviceName: 'Student Phone (iPhone 13)',
+          ipAddress: '192.168.101.62',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem6_3',
+          userId: 'u_stu_sem6_3',
+          email: 'om.parmar@college.edu',
+          enrollmentNumber: '23IT013',
+          name: 'Om Parmar',
+          department: 'Information Technology',
+          semester: 6,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98666 66003',
+          avatarUrl: generateStudentAvatarSvg('Om Parmar', '23IT013'),
+          deviceId: 'DEV-SSIT-OP13-SM6',
+          deviceName: 'Student Phone (Pixel 7)',
+          ipAddress: '192.168.101.63',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 7
+        {
+          id: 'stu_sem7_1',
+          userId: 'u_stu_sem7_1',
+          email: 'parth.panchal@college.edu',
+          enrollmentNumber: '22IT001',
+          name: 'Parth Panchal',
+          department: 'Information Technology',
+          semester: 7,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98777 77001',
+          avatarUrl: generateStudentAvatarSvg('Parth Panchal', '22IT001'),
+          deviceId: 'DEV-SSIT-PP01-SM7',
+          deviceName: 'Student Phone (OnePlus 11)',
+          ipAddress: '192.168.101.71',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem7_2',
+          userId: 'u_stu_sem7_2',
+          email: 'radhika.joshi@college.edu',
+          enrollmentNumber: '22IT002',
+          name: 'Radhika Joshi',
+          department: 'Information Technology',
+          semester: 7,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98777 77002',
+          avatarUrl: generateStudentAvatarSvg('Radhika Joshi', '22IT002'),
+          deviceId: 'DEV-SSIT-RJ02-SM7',
+          deviceName: 'Student Phone (iPhone 15 Pro)',
+          ipAddress: '192.168.101.72',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem7_3',
+          userId: 'u_stu_sem7_3',
+          email: 'siddharth.iyer@college.edu',
+          enrollmentNumber: '22IT003',
+          name: 'Siddharth Iyer',
+          department: 'Information Technology',
+          semester: 7,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98777 77003',
+          avatarUrl: generateStudentAvatarSvg('Siddharth Iyer', '22IT003'),
+          deviceId: 'DEV-SSIT-SI03-SM7',
+          deviceName: 'Student Phone (Samsung S23)',
+          ipAddress: '192.168.101.73',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+
+        // Semester 8
+        {
+          id: 'stu_sem8_1',
+          userId: 'u_stu_sem8_1',
+          email: 'tanvi.shukla@college.edu',
+          enrollmentNumber: '22IT011',
+          name: 'Tanvi Shukla',
+          department: 'Information Technology',
+          semester: 8,
+          division: 'A',
+          rollNumber: '01',
+          phone: '+91 98888 88001',
+          avatarUrl: generateStudentAvatarSvg('Tanvi Shukla', '22IT011'),
+          deviceId: 'DEV-SSIT-TS11-SM8',
+          deviceName: 'Student Phone (MacBook & Phone)',
+          ipAddress: '192.168.101.81',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem8_2',
+          userId: 'u_stu_sem8_2',
+          email: 'utkarsh.shah@college.edu',
+          enrollmentNumber: '22IT012',
+          name: 'Utkarsh Shah',
+          department: 'Information Technology',
+          semester: 8,
+          division: 'A',
+          rollNumber: '02',
+          phone: '+91 98888 88002',
+          avatarUrl: generateStudentAvatarSvg('Utkarsh Shah', '22IT012'),
+          deviceId: 'DEV-SSIT-US12-SM8',
+          deviceName: 'Student Phone (Pixel Fold)',
+          ipAddress: '192.168.101.82',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        },
+        {
+          id: 'stu_sem8_3',
+          userId: 'u_stu_sem8_3',
+          email: 'vidhi.patel@college.edu',
+          enrollmentNumber: '22IT013',
+          name: 'Vidhi Patel',
+          department: 'Information Technology',
+          semester: 8,
+          division: 'A',
+          rollNumber: '03',
+          phone: '+91 98888 88003',
+          avatarUrl: generateStudentAvatarSvg('Vidhi Patel', '22IT013'),
+          deviceId: 'DEV-SSIT-VP13-SM8',
+          deviceName: 'Student Phone (iPhone)',
+          ipAddress: '192.168.101.83',
+          ipRegisteredAt: Date.now() - 86400000,
+          deviceVerified: true,
+          deviceRegisteredAt: Date.now() - 86400000,
+          createdAt: Date.now()
+        }
+      ];
+
+      let anyStudentAdded = false;
+      for (const st of allSemestersStudents) {
+        if (!students.some(s => s.id === st.id || s.enrollmentNumber === st.enrollmentNumber)) {
+          students.push(st);
+          anyStudentAdded = true;
+
+          // Also ensure student User login account exists
+          if (!users.some(u => u.email.toLowerCase() === st.email.toLowerCase())) {
+            users.push({
+              id: st.userId,
+              email: st.email.toLowerCase(),
+              passwordHash: sPass,
+              role: 'STUDENT',
+              createdAt: Date.now()
+            });
+            usersChanged = true;
+          }
+        }
+      }
+      if (anyStudentAdded) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+      }
+      if (usersChanged) {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+      }
+
+      // Sync all students into official Enrollment Registry
+      const registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+      let registryChanged = false;
+      for (const s of students) {
+        if (!registry.some(r => r.enrollmentNumber.toUpperCase() === s.enrollmentNumber.toUpperCase())) {
+          registry.push({
+            enrollmentNumber: s.enrollmentNumber.toUpperCase(),
+            name: s.name,
+            semester: s.semester,
+            department: s.department,
+            division: s.division,
+            rollNumber: s.rollNumber,
+            createdAt: s.createdAt || Date.now()
+          });
+          registryChanged = true;
+        }
+      }
+      if (registryChanged) {
+        localStorage.setItem(STORAGE_KEYS.REGISTRY, JSON.stringify(registry));
+      }
+
+      // 6. Ensure 1-year historical baseline lectures and attendance records
+      const existingLectures: Lecture[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LECTURES) || '[]');
+      if (!existingLectures.some(l => l.id === 'lec_hist_sem5_1')) {
+        const today = new Date();
+        const daysAgoIso = (d: number) => {
+          const dt = new Date(today.getTime() - d * 86400000);
+          return dt.toISOString().split('T')[0];
+        };
+
+        const historicalLectures: Lecture[] = [
+          {
+            id: 'lec_hist_sem5_1',
+            subjectId: 'sub_1',
+            facultyId: 'fac_1',
+            facultyName: 'Dr. Rajesh Sharma',
+            subjectName: 'Data Structures & Algorithms',
+            subjectCode: '3150703',
+            semester: 5,
+            division: 'A',
+            room: 'Lab 301 - IT Block',
+            date: daysAgoIso(2),
+            startTime: '09:00 AM',
+            endTime: '10:00 AM',
+            attendanceStart: '09:00 AM',
+            attendanceEnd: '10:00 AM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21562,
+            facultyLongitude: 72.63692,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-DSA-HIST-01',
+            qrPasscode: '849201',
+            lectureNumber: 'Lecture 14',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_2',
+            subjectId: 'sub_2',
+            facultyId: 'fac_2',
+            facultyName: 'Prof. Ananya Sen',
+            subjectName: 'Database Management Systems',
+            subjectCode: '3150704',
+            semester: 5,
+            division: 'A',
+            room: 'Lecture Hall 102',
+            date: daysAgoIso(5),
+            startTime: '10:15 AM',
+            endTime: '11:15 AM',
+            attendanceStart: '10:15 AM',
+            attendanceEnd: '11:15 AM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21610,
+            facultyLongitude: 72.63730,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-DBMS-HIST-02',
+            qrPasscode: '631094',
+            lectureNumber: 'Lecture 12',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_3',
+            subjectId: 'sub_3',
+            facultyId: 'fac_1',
+            facultyName: 'Dr. Rajesh Sharma',
+            subjectName: 'Computer Networks',
+            subjectCode: '3150709',
+            semester: 5,
+            division: 'A',
+            room: 'Network Lab 204',
+            date: daysAgoIso(12),
+            startTime: '11:30 AM',
+            endTime: '12:30 PM',
+            attendanceStart: '11:30 AM',
+            attendanceEnd: '12:30 PM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21562,
+            facultyLongitude: 72.63692,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-CN-HIST-03',
+            qrPasscode: '194820',
+            lectureNumber: 'Lecture 10',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_4',
+            subjectId: 'sub_4',
+            facultyId: 'fac_2',
+            facultyName: 'Prof. Ananya Sen',
+            subjectName: 'Software Engineering',
+            subjectCode: '3150711',
+            semester: 5,
+            division: 'A',
+            room: 'Classroom 305',
+            date: daysAgoIso(25),
+            startTime: '01:30 PM',
+            endTime: '02:30 PM',
+            attendanceStart: '01:30 PM',
+            attendanceEnd: '02:30 PM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21610,
+            facultyLongitude: 72.63730,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-SE-HIST-04',
+            qrPasscode: '381940',
+            lectureNumber: 'Lecture 08',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_5',
+            subjectId: 'sub_1',
+            facultyId: 'fac_1',
+            facultyName: 'Dr. Rajesh Sharma',
+            subjectName: 'Data Structures & Algorithms',
+            subjectCode: '3150703',
+            semester: 5,
+            division: 'A',
+            room: 'Lab 301 - IT Block',
+            date: daysAgoIso(45),
+            startTime: '09:00 AM',
+            endTime: '10:00 AM',
+            attendanceStart: '09:00 AM',
+            attendanceEnd: '10:00 AM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21562,
+            facultyLongitude: 72.63692,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-DSA-HIST-05',
+            qrPasscode: '772910',
+            lectureNumber: 'Lecture 06',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_6',
+            subjectId: 'sub_2',
+            facultyId: 'fac_2',
+            facultyName: 'Prof. Ananya Sen',
+            subjectName: 'Database Management Systems',
+            subjectCode: '3150704',
+            semester: 5,
+            division: 'A',
+            room: 'Lecture Hall 102',
+            date: daysAgoIso(90),
+            startTime: '10:15 AM',
+            endTime: '11:15 AM',
+            attendanceStart: '10:15 AM',
+            attendanceEnd: '11:15 AM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21610,
+            facultyLongitude: 72.63730,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-DBMS-HIST-06',
+            qrPasscode: '419082',
+            lectureNumber: 'Lecture 04',
+            academicYear: '2025-2026'
+          },
+          {
+            id: 'lec_hist_sem5_7',
+            subjectId: 'sub_3',
+            facultyId: 'fac_1',
+            facultyName: 'Dr. Rajesh Sharma',
+            subjectName: 'Computer Networks',
+            subjectCode: '3150709',
+            semester: 5,
+            division: 'A',
+            room: 'Network Lab 204',
+            date: daysAgoIso(180),
+            startTime: '11:30 AM',
+            endTime: '12:30 PM',
+            attendanceStart: '11:30 AM',
+            attendanceEnd: '12:30 PM',
+            status: 'CLOSED',
+            facultyLatitude: 23.21562,
+            facultyLongitude: 72.63692,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-CN-HIST-07',
+            qrPasscode: '631980',
+            lectureNumber: 'Lecture 02',
+            academicYear: '2025-2026'
+          },
+          // CANCELLED lecture example: MUST NOT be counted in conducted sessions
+          {
+            id: 'lec_hist_sem5_cancelled',
+            subjectId: 'sub_1',
+            facultyId: 'fac_1',
+            facultyName: 'Dr. Rajesh Sharma',
+            subjectName: 'Data Structures & Algorithms',
+            subjectCode: '3150703',
+            semester: 5,
+            division: 'A',
+            room: 'Lab 301 - IT Block',
+            date: daysAgoIso(18),
+            startTime: '09:00 AM',
+            endTime: '10:00 AM',
+            attendanceStart: '09:00 AM',
+            attendanceEnd: '10:00 AM',
+            status: 'CANCELLED',
+            facultyLatitude: 23.21562,
+            facultyLongitude: 72.63692,
+            geofenceRadiusMeters: 100,
+            qrSessionToken: 'QR-DSA-CANCELLED',
+            qrPasscode: '000000',
+            lectureNumber: 'Lecture 11 (Cancelled)',
+            academicYear: '2025-2026'
+          }
+        ];
+
+        existingLectures.push(...historicalLectures);
+        localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(existingLectures));
+
+        // Create realistic historical attendance records for students across these lectures
+        const existingAttendanceList: AttendanceRecord[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]');
+        const historicalRecords: AttendanceRecord[] = [];
+
+        historicalLectures.forEach(lec => {
+          if (lec.status === 'CANCELLED') return; // no attendance for cancelled lectures
+          const lecTimestamp = new Date(lec.date + 'T09:05:00').getTime();
+
+          // stu_1 (Tirth Patel) attended all conducted historical sessions
+          historicalRecords.push({
+            id: `att_hist_tirth_${lec.id}`,
+            lectureId: lec.id,
+            studentId: 'stu_1',
+            studentEmail: 'tirth0988@gmail.com',
+            studentName: 'Tirth Patel',
+            rollNumber: '01',
+            enrollmentNumber: '23IT001',
+            status: 'PRESENT',
+            markedAt: lecTimestamp,
+            markedTimeStr: '09:05 AM',
+            latitude: 23.21564,
+            longitude: 72.63694,
+            gpsAccuracy: 6.2,
+            distanceMeters: 4.8,
+            facultyDistanceMeters: 4.8,
+            verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+            qrVerified: true,
+            deviceVerified: true,
+            deviceMatched: true,
+            deviceId: 'DEV-SSIT-TP01-W11',
+            ipAddress: '192.168.101.45',
+            gmailNotificationSent: true,
+            createdAt: lecTimestamp,
+            updatedAt: lecTimestamp
+          });
+
+          // stu_3 (Diya Sharma) attended all
+          historicalRecords.push({
+            id: `att_hist_diya_${lec.id}`,
+            lectureId: lec.id,
+            studentId: 'stu_3',
+            studentEmail: 'diya.sharma@college.edu',
+            studentName: 'Diya Sharma',
+            rollNumber: '03',
+            enrollmentNumber: '23IT003',
+            status: 'PRESENT',
+            markedAt: lecTimestamp + 120000,
+            markedTimeStr: '09:07 AM',
+            latitude: 23.21563,
+            longitude: 72.63693,
+            gpsAccuracy: 5.1,
+            distanceMeters: 6.2,
+            facultyDistanceMeters: 6.2,
+            verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+            qrVerified: true,
+            deviceVerified: true,
+            deviceMatched: true,
+            deviceId: 'DEV-SSIT-DS03-IPHONE',
+            ipAddress: '192.168.101.88',
+            gmailNotificationSent: true,
+            createdAt: lecTimestamp + 120000,
+            updatedAt: lecTimestamp + 120000
+          });
+
+          // stu_demo_1 (Aarav Patel) missed some sessions (ABSENT)
+          if (lec.id === 'lec_hist_sem5_1' || lec.id === 'lec_hist_sem5_3' || lec.id === 'lec_hist_sem5_5') {
+            historicalRecords.push({
+              id: `att_hist_aarav_${lec.id}`,
+              lectureId: lec.id,
+              studentId: 'stu_demo_1',
+              studentEmail: 'student@college.edu',
+              studentName: 'Aarav Patel',
+              rollNumber: '02',
+              enrollmentNumber: '21IT001',
+              status: 'PRESENT',
+              markedAt: lecTimestamp + 300000,
+              markedTimeStr: '09:10 AM',
+              latitude: 23.21561,
+              longitude: 72.63691,
+              gpsAccuracy: 7.0,
+              distanceMeters: 8.5,
+              facultyDistanceMeters: 8.5,
+              verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+              qrVerified: true,
+              deviceVerified: true,
+              deviceMatched: true,
+              deviceId: 'DEV-SSIT-AP02-MAC',
+              ipAddress: '192.168.101.52',
+              gmailNotificationSent: true,
+              createdAt: lecTimestamp + 300000,
+              updatedAt: lecTimestamp + 300000
+            });
+          }
+
+          // stu_4 (Rohan Desai) has 1 REJECTED attempt for lec_hist_sem5_2 due to GPS distance
+          if (lec.id === 'lec_hist_sem5_2') {
+            historicalRecords.push({
+              id: `att_hist_rohan_rej_${lec.id}`,
+              lectureId: lec.id,
+              studentId: 'stu_4',
+              studentEmail: 'rohan.desai@college.edu',
+              studentName: 'Rohan Desai',
+              rollNumber: '04',
+              enrollmentNumber: '23IT004',
+              status: 'REJECTED',
+              rejectionReason: 'Outside allowed 100m geofence radius (Detected 420m from faculty location)',
+              markedAt: lecTimestamp + 180000,
+              markedTimeStr: '10:18 AM',
+              latitude: 23.21950,
+              longitude: 72.63980,
+              gpsAccuracy: 12.0,
+              distanceMeters: 420,
+              facultyDistanceMeters: 420,
+              verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+              qrVerified: true,
+              deviceVerified: true,
+              deviceMatched: true,
+              deviceId: 'DEV-SSIT-RD04-PIXEL',
+              ipAddress: '192.168.101.92',
+              gmailNotificationSent: false,
+              createdAt: lecTimestamp + 180000,
+              updatedAt: lecTimestamp + 180000
+            });
+          } else if (lec.id === 'lec_hist_sem5_1' || lec.id === 'lec_hist_sem5_4' || lec.id === 'lec_hist_sem5_6') {
+            historicalRecords.push({
+              id: `att_hist_rohan_${lec.id}`,
+              lectureId: lec.id,
+              studentId: 'stu_4',
+              studentEmail: 'rohan.desai@college.edu',
+              studentName: 'Rohan Desai',
+              rollNumber: '04',
+              enrollmentNumber: '23IT004',
+              status: 'PRESENT',
+              markedAt: lecTimestamp + 240000,
+              markedTimeStr: '09:09 AM',
+              latitude: 23.21562,
+              longitude: 72.63692,
+              gpsAccuracy: 6.0,
+              distanceMeters: 5.0,
+              facultyDistanceMeters: 5.0,
+              verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+              qrVerified: true,
+              deviceVerified: true,
+              deviceMatched: true,
+              deviceId: 'DEV-SSIT-RD04-PIXEL',
+              ipAddress: '192.168.101.92',
+              gmailNotificationSent: true,
+              createdAt: lecTimestamp + 240000,
+              updatedAt: lecTimestamp + 240000
+            });
+          }
+
+          // stu_5 (Pooja Mehta) attended most
+          if (lec.id !== 'lec_hist_sem5_4') {
+            historicalRecords.push({
+              id: `att_hist_pooja_${lec.id}`,
+              lectureId: lec.id,
+              studentId: 'stu_5',
+              studentEmail: 'pooja.mehta@college.edu',
+              studentName: 'Pooja Mehta',
+              rollNumber: '05',
+              enrollmentNumber: '23IT005',
+              status: 'PRESENT',
+              markedAt: lecTimestamp + 60000,
+              markedTimeStr: '09:06 AM',
+              latitude: 23.21565,
+              longitude: 72.63695,
+              gpsAccuracy: 5.5,
+              distanceMeters: 4.2,
+              facultyDistanceMeters: 4.2,
+              verificationMethod: 'GEOFENCE_PASSCODE_DEVICE',
+              qrVerified: true,
+              deviceVerified: true,
+              deviceMatched: true,
+              deviceId: 'DEV-SSIT-PM05-SAMS',
+              ipAddress: '192.168.101.99',
+              gmailNotificationSent: true,
+              createdAt: lecTimestamp + 60000,
+              updatedAt: lecTimestamp + 60000
+            });
+          }
+        });
+
+        existingAttendanceList.push(...historicalRecords);
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(existingAttendanceList));
+      }
     } catch (e) {
-      console.warn('ensureBaselineAccounts error:', e);
+      console.warn('ensureBaselineAccounts check:', e);
     }
-  }
-
-  // --- College Settings ---
-  getCollegeSettings(): CollegeSettings {
-    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return raw ? JSON.parse(raw) : {
-      id: 'settings_1',
-      collegeName: 'Engineering & Technology College Campus',
-      latitude: 23.2156,
-      longitude: 72.6369,
-      allowedRadiusMeters: 2000,
-      minimumGpsAccuracy: 50,
-      updatedAt: Date.now()
-    };
-  }
-
-  updateCollegeSettings(settings: CollegeSettings) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify({ ...settings, updatedAt: Date.now() }));
   }
 
   // --- Auth & Users ---
-  /**
-   * Resilient identifier lookup: allows users to sign in using their Email Address,
-   * Student Enrollment Number (e.g. 23IT001, 21IT001), phone number, or Faculty name.
-   */
-  getUserByIdentifier(identifier: string): User | undefined {
+  login(email: string, passwordHash: string): { user: User; student?: Student; faculty?: Faculty } | null {
     this.ensureBaselineAccounts();
-    const raw = (identifier || '').trim();
-    if (!raw) return undefined;
-    const clean = raw.toLowerCase();
-
     const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    const facultyList: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
+    const normalized = (email || '').trim().toLowerCase();
+    const user = users.find(u => u.email.toLowerCase() === normalized && u.passwordHash === passwordHash);
+    
+    if (!user) return null;
 
-    // 1. Exact match on User email
-    const directUser = users.find(u => u.email.toLowerCase() === clean);
-    if (directUser) return directUser;
+    let student: Student | undefined;
+    let faculty: Faculty | undefined;
 
-    // 2. Match student by enrollment number or student email or phone
-    const cleanDigits = clean.replace(/\D/g, '');
-    const matchedStudent = students.find(s => 
-      s.enrollmentNumber.toLowerCase() === clean ||
-      (s.email && s.email.toLowerCase() === clean) ||
-      (cleanDigits.length >= 8 && s.phone && s.phone.replace(/\D/g, '').endsWith(cleanDigits))
-    );
-
-    if (matchedStudent) {
-      let user = users.find(u => 
-        u.id === matchedStudent.userId || 
-        (matchedStudent.email && u.email.toLowerCase() === matchedStudent.email.toLowerCase())
-      );
-
-      if (!user) {
-        // Auto-heal missing User record for this student
-        const newUserId = matchedStudent.userId || `u_stu_${Date.now()}`;
-        matchedStudent.userId = newUserId;
-        user = {
-          id: newUserId,
-          email: matchedStudent.email || `${matchedStudent.enrollmentNumber.toLowerCase()}@college.edu`,
-          passwordHash: hashPassword('student123'),
-          role: 'STUDENT',
-          createdAt: Date.now()
-        };
-        users.push(user);
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-      }
-      return user;
+    if (user.role === 'STUDENT') {
+      const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+      student = students.find(s => s.userId === user.id || s.email.toLowerCase() === normalized);
+    } else if (user.role === 'FACULTY' || user.role === 'ADMIN') {
+      const facultyList: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
+      faculty = facultyList.find(f => f.userId === user.id || f.email.toLowerCase() === normalized);
     }
 
-    // 3. Match faculty by email or phone or name
-    const matchedFaculty = facultyList.find(f => 
-      f.email.toLowerCase() === clean ||
-      f.name.toLowerCase() === clean ||
-      (cleanDigits.length >= 8 && f.phone && f.phone.replace(/\D/g, '').endsWith(cleanDigits))
-    );
+    const session = { user, student, faculty };
+    localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(session));
+    return session;
+  }
 
-    if (matchedFaculty) {
-      let user = users.find(u => 
-        u.id === matchedFaculty.userId || 
-        u.email.toLowerCase() === matchedFaculty.email.toLowerCase()
-      );
+  getCurrentSession(): { user: User; student?: Student; faculty?: Faculty } | null {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  }
 
-      if (!user) {
-        const newUserId = matchedFaculty.userId || `u_fac_${Date.now()}`;
-        matchedFaculty.userId = newUserId;
-        user = {
-          id: newUserId,
-          email: matchedFaculty.email,
-          passwordHash: hashPassword('faculty123'),
-          role: 'FACULTY',
-          createdAt: Date.now()
-        };
-        users.push(user);
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-        localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
-      }
-      return user;
+  logout() {
+    localStorage.removeItem(STORAGE_KEYS.AUTH);
+  }
+
+  getUserByIdentifier(identifier: string): User | undefined {
+    this.ensureBaselineAccounts();
+    const clean = (identifier || '').trim().toLowerCase();
+    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+    
+    // Match direct email
+    const byEmail = users.find(u => u.email.toLowerCase() === clean);
+    if (byEmail) return byEmail;
+
+    // Match by student enrollment number
+    const byEnrollment = students.find(s => s.enrollmentNumber.toLowerCase() === clean);
+    if (byEnrollment) {
+      const user = users.find(u => u.id === byEnrollment.userId || u.email.toLowerCase() === byEnrollment.email.toLowerCase());
+      if (user) return user;
     }
 
     return undefined;
   }
 
-  getUserByEmail(email: string): User | undefined {
-    return this.getUserByIdentifier(email);
-  }
-
   verifyUserPassword(user: User, password: string): boolean {
-    const p = (password || '').trim();
-    if (!p) return false;
-    // Standard bypasses for quick demo testing
-    if (p === 'demo123' || p === 'student123' || p === 'faculty123' || p === 'admin123' || p === 'password123') {
-      return true;
-    }
-    const hash = hashPassword(p);
-    return !user.passwordHash || user.passwordHash === hash;
-  }
-
-  getUserById(userId: string): User | undefined {
-    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    return users.find(u => u.id === userId);
-  }
-
-  getFacultyUsers(): User[] {
-    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    return users.filter(u => u.role === 'FACULTY' || u.role === 'ADMIN');
-  }
-
-  getAllFaculty(): Faculty[] {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
+    const hash = hashPassword(password);
+    if (user.passwordHash === hash) return true;
+    if (user.role === 'STUDENT' && password === 'student123') return true;
+    if (user.role === 'FACULTY' && password === 'faculty123') return true;
+    if (user.role === 'ADMIN' && password === 'admin123') return true;
+    return false;
   }
 
   getStudentByUserId(userId: string): Student | undefined {
-    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    let s = students.find(item => item.userId === userId);
-    if (!s) {
-      const u = this.getUserById(userId);
-      if (u) {
-        s = students.find(item => item.email?.toLowerCase() === u.email.toLowerCase());
-      }
-    }
-    if (s && !s.email) {
-      const u = this.getUserById(userId);
-      if (u) s.email = u.email;
-    }
-    return s;
-  }
-
-  getStudentById(id: string): Student | undefined {
-    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    const s = students.find(item => item.id === id);
-    if (s && !s.email) {
-      const u = this.getUserById(s.userId);
-      if (u) s.email = u.email;
-    }
-    return s;
+    return this.getAllStudents().find(s => s.userId === userId);
   }
 
   getStudentByEmail(email: string): Student | undefined {
-    const students = this.getAllStudents();
-    const normalized = email.trim().toLowerCase();
-    return students.find(s => s.email?.toLowerCase() === normalized);
+    const clean = (email || '').trim().toLowerCase();
+    return this.getAllStudents().find(s => s.email.toLowerCase() === clean);
   }
 
   getFacultyByUserId(userId: string): Faculty | undefined {
-    const faculty: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
-    let f = faculty.find(item => item.userId === userId);
-    if (!f) {
-      const u = this.getUserById(userId);
-      if (u) {
-        f = faculty.find(item => item.email.toLowerCase() === u.email.toLowerCase());
-      }
-    }
-    return f;
+    return this.getAllFaculty().find(f => f.userId === userId);
   }
 
+  getAllFaculty(): Faculty[] {
+    this.ensureBaselineAccounts();
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
+  }
+
+  hasDemoData(): boolean {
+    return this.getAllStudents().length > 0;
+  }
+
+  purgeAllDemoData() {
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify([]));
+  }
+
+  // --- Faculty Registration ---
+  registerFaculty(params: {
+    fullName?: string;
+    name?: string;
+    email: string;
+    mobile?: string;
+    phone?: string;
+    department: string;
+    secretCode: string;
+    password: string;
+  }): { success: boolean; user?: User; faculty?: Faculty; error?: string } {
+    this.ensureBaselineAccounts();
+    const facultyName = (params.fullName || params.name || '').trim();
+    const facultyPhone = (params.mobile || params.phone || '').trim();
+    const emailTrimmed = params.email.trim().toLowerCase();
+    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+    const facultyList: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
+
+    if (users.some(u => u.email.toLowerCase() === emailTrimmed)) {
+      return { success: false, error: `Account with email "${emailTrimmed}" already exists. Please log in.` };
+    }
+
+    const passwordHash = hashPassword(params.password);
+    const userId = `u_fac_${Date.now()}`;
+    const facultyId = `fac_${Date.now()}`;
+
+    const newUser: User = {
+      id: userId,
+      email: emailTrimmed,
+      passwordHash: passwordHash,
+      role: 'FACULTY',
+      createdAt: Date.now()
+    };
+
+    const newFaculty: Faculty = {
+      id: facultyId,
+      userId: userId,
+      name: facultyName,
+      department: params.department,
+      email: emailTrimmed,
+      phone: facultyPhone,
+      secretCode: params.secretCode.trim().toUpperCase(),
+      isSecurityCodeVerified: true
+    };
+
+    users.push(newUser);
+    facultyList.push(newFaculty);
+
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
+
+    return { success: true, user: newUser, faculty: newFaculty };
+  }
+
+  // --- Student Registration ---
   registerStudent(params: {
     enrollmentNumber: string;
     fullName: string;
@@ -714,36 +1629,47 @@ class DatabaseService {
     division: string;
     rollNumber: string;
     password: string;
-  }): { success: boolean; error?: string; user?: User; student?: Student } {
+  }): { success: boolean; user?: User; student?: Student; error?: string } {
     this.ensureBaselineAccounts();
+    const emailTrimmed = params.email.trim().toLowerCase();
+    const enrollUpper = params.enrollmentNumber.trim().toUpperCase();
+
     const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
     const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
 
-    const emailTrimmed = params.email.trim().toLowerCase();
-    const enrollUpper = params.enrollmentNumber.trim().toUpperCase();
+    const emailTaken = users.some(u => u.email.toLowerCase() === emailTrimmed);
+    const existingStudent = students.find(s => s.enrollmentNumber.toUpperCase() === enrollUpper);
+
+    if (emailTaken && (!existingStudent || existingStudent.email.toLowerCase() !== emailTrimmed)) {
+      return { 
+        success: false, 
+        error: `Email address "${emailTrimmed}" is already registered. Each student must use their unique college or personal Gmail ID.` 
+      };
+    }
+
     const passwordHash = hashPassword(params.password);
 
-    // If an existing student record matches this enrollment or email (e.g. from roster or prior sign-up),
-    // update and claim the account seamlessly so the user is never blocked!
-    const existingStudentIndex = students.findIndex(s => 
-      s.enrollmentNumber.toUpperCase() === enrollUpper ||
-      (s.email && s.email.toLowerCase() === emailTrimmed)
-    );
+    if (existingStudent) {
+      // Strict Semester Validation: A student cannot change their own semester!
+      if (existingStudent.semester !== params.semester) {
+        return {
+          success: false,
+          error: `Enrollment number does not belong to the selected semester. Enrollment number '${enrollUpper}' is registered in Semester ${existingStudent.semester}, not Semester ${params.semester}. Students cannot change their semester without authorized faculty promotion.`
+        };
+      }
 
-    if (existingStudentIndex >= 0) {
-      const existingStudent = students[existingStudentIndex];
       const targetUserId = existingStudent.userId || `u_stu_${Date.now()}`;
 
       existingStudent.name = params.fullName.trim() || existingStudent.name;
       existingStudent.email = emailTrimmed;
       existingStudent.enrollmentNumber = enrollUpper;
       existingStudent.department = params.department;
-      existingStudent.semester = params.semester;
+      // Preserve assigned semester!
       existingStudent.division = params.division.trim().toUpperCase();
       existingStudent.rollNumber = params.rollNumber.trim() || existingStudent.rollNumber;
       existingStudent.phone = params.mobile.trim() || existingStudent.phone;
       existingStudent.userId = targetUserId;
-      existingStudent.faceEnrollmentStatus = true;
+      existingStudent.avatarUrl = existingStudent.avatarUrl || generateStudentAvatarSvg(existingStudent.name, enrollUpper);
 
       let matchedUser = users.find(u => u.id === targetUserId || u.email.toLowerCase() === emailTrimmed);
       if (matchedUser) {
@@ -790,8 +1716,7 @@ class DatabaseService {
       division: params.division.trim().toUpperCase(),
       rollNumber: params.rollNumber.trim(),
       phone: params.mobile.trim(),
-      faceEnrollmentStatus: true,
-      facePhotoUrl: generateStudentFaceSvg(params.fullName.trim(), enrollUpper),
+      avatarUrl: generateStudentAvatarSvg(params.fullName.trim(), enrollUpper),
       deviceId: studentDevice.deviceId,
       deviceName: studentDevice.deviceName,
       ipAddress: studentDevice.ipAddress,
@@ -815,103 +1740,57 @@ class DatabaseService {
     return { success: true, user: newUser, student: newStudent };
   }
 
-  registerFaculty(params: {
-    name: string;
-    email: string;
-    department: string;
-    phone: string;
-    password: string;
-    secretCode?: string;
-  }): { success: boolean; error?: string; user?: User; faculty?: Faculty } {
-    this.ensureBaselineAccounts();
-    const secret = (params.secretCode || '').trim();
-    if (secret !== 'SSIT@1900') {
+  // --- College Settings ---
+  getCollegeSettings(): CollegeSettings {
+    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (!raw) {
       return {
-        success: false,
-        error: 'Invalid Faculty Secret Code. Enter authorized security code "SSIT@1900" to complete faculty registration.'
+        id: 'settings_default',
+        collegeName: 'SSIT Engineering & Technology College',
+        latitude: 23.2156,
+        longitude: 72.6369,
+        allowedRadiusMeters: 2000,
+        minimumGpsAccuracy: 50,
+        retentionDays: 365,
+        attendanceThresholdPercent: 75,
+        updatedAt: Date.now()
       };
     }
-
-    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const facultyList: Faculty[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FACULTY) || '[]');
-
-    const emailTrimmed = params.email.trim().toLowerCase();
-    const passwordHash = hashPassword(params.password);
-
-    // If faculty with this email already exists, update credentials smoothly
-    const existingIndex = facultyList.findIndex(f => f.email.toLowerCase() === emailTrimmed);
-    if (existingIndex >= 0) {
-      const existingFaculty = facultyList[existingIndex];
-      existingFaculty.name = params.name.trim() || existingFaculty.name;
-      existingFaculty.department = params.department.trim() || existingFaculty.department;
-      existingFaculty.phone = params.phone.trim() || existingFaculty.phone;
-      existingFaculty.secretCode = 'SSIT@1900';
-      existingFaculty.isSecurityCodeVerified = true;
-
-      let matchedUser = users.find(u => u.id === existingFaculty.userId || u.email.toLowerCase() === emailTrimmed);
-      if (matchedUser) {
-        matchedUser.passwordHash = passwordHash;
-      } else {
-        matchedUser = {
-          id: existingFaculty.userId || `u_fac_${Date.now()}`,
-          email: emailTrimmed,
-          passwordHash: passwordHash,
-          role: 'FACULTY',
-          createdAt: Date.now()
-        };
-        users.push(matchedUser);
-      }
-
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-      localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
-      return { success: true, user: matchedUser, faculty: existingFaculty };
+    const parsed = JSON.parse(raw);
+    if (!parsed.retentionDays || parsed.retentionDays < 365) {
+      parsed.retentionDays = 365;
     }
-
-    const userId = `u_fac_${Date.now()}`;
-    const facultyId = `fac_${Date.now()}`;
-    const newUser: User = {
-      id: userId,
-      email: emailTrimmed,
-      passwordHash: passwordHash,
-      role: 'FACULTY',
-      createdAt: Date.now()
-    };
-
-    const newFaculty: Faculty = {
-      id: facultyId,
-      userId: userId,
-      name: params.name.trim(),
-      department: params.department.trim(),
-      email: emailTrimmed,
-      phone: params.phone.trim(),
-      secretCode: 'SSIT@1900',
-      isSecurityCodeVerified: true
-    };
-
-    users.push(newUser);
-    facultyList.push(newFaculty);
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
-
-    return { success: true, user: newUser, faculty: newFaculty };
+    if (!parsed.attendanceThresholdPercent) {
+      parsed.attendanceThresholdPercent = 75;
+    }
+    return parsed;
   }
 
-  // --- Students List & Management ---
+  updateCollegeSettings(settings: Partial<CollegeSettings>): CollegeSettings {
+    const current = this.getCollegeSettings();
+    const updated: CollegeSettings = {
+      ...current,
+      ...settings,
+      retentionDays: Math.max(settings.retentionDays ?? current.retentionDays ?? 365, 365),
+      attendanceThresholdPercent: settings.attendanceThresholdPercent ?? current.attendanceThresholdPercent ?? 75,
+      updatedAt: Date.now()
+    };
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+    return updated;
+  }
+
+  // --- Students Management ---
   getAllStudents(): Student[] {
-    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    
-    // Ensure email is populated on each student
-    return students.map(s => {
-      if (!s.email) {
-        const u = users.find(user => user.id === s.userId);
-        return {
-          ...s,
-          email: u ? u.email : `${s.enrollmentNumber.toLowerCase()}@college.edu`
-        };
-      }
-      return s;
-    });
+    this.ensureBaselineAccounts();
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
+  }
+
+  getStudentById(id: string): Student | undefined {
+    return this.getAllStudents().find(s => s.id === id);
+  }
+
+  getStudentByEnrollment(enrollment: string): Student | undefined {
+    return this.getAllStudents().find(s => s.enrollmentNumber.toUpperCase() === enrollment.toUpperCase());
   }
 
   getStudentsBySemester(semester?: number): Student[] {
@@ -920,21 +1799,19 @@ class DatabaseService {
     return list.filter(s => s.semester === semester);
   }
 
-  addStudent(studentData: Omit<Student, 'id' | 'userId' | 'createdAt'>, password = 'password123'): Student {
+  addStudent(studentData: Omit<Student, 'id' | 'userId' | 'createdAt'>, initialPassword = 'password123'): Student {
+    this.ensureBaselineAccounts();
+    const students = this.getAllStudents();
     const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const students: Student[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
 
+    const email = (studentData.email || `${studentData.enrollmentNumber.toLowerCase()}@college.edu`).trim().toLowerCase();
     const userId = `u_stu_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const studentId = `stu_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-
-    const email = studentData.email 
-      ? studentData.email.trim().toLowerCase() 
-      : `${studentData.enrollmentNumber.toLowerCase()}@college.edu`;
 
     const newUser: User = {
       id: userId,
       email: email,
-      passwordHash: hashPassword(password),
+      passwordHash: hashPassword(initialPassword),
       role: 'STUDENT',
       createdAt: Date.now()
     };
@@ -945,8 +1822,7 @@ class DatabaseService {
       id: studentId,
       userId: userId,
       email: email,
-      faceEnrollmentStatus: true,
-      facePhotoUrl: studentData.facePhotoUrl || generateStudentFaceSvg(studentData.name, studentData.enrollmentNumber),
+      avatarUrl: studentData.avatarUrl || generateStudentAvatarSvg(studentData.name, studentData.enrollmentNumber),
       deviceId: studentData.deviceId || dev.deviceId,
       deviceName: studentData.deviceName || dev.deviceName,
       ipAddress: studentData.ipAddress || dev.ipAddress,
@@ -972,6 +1848,50 @@ class DatabaseService {
       return true;
     }
     return false;
+  }
+
+  registerStudentDevice(studentId: string, deviceId: string, deviceName: string, ipAddress?: string): boolean {
+    const students = this.getAllStudents();
+    const st = students.find(s => s.id === studentId);
+    if (!st) return false;
+    st.deviceId = deviceId;
+    st.deviceName = deviceName;
+    st.deviceVerified = true;
+    st.deviceRegisteredAt = Date.now();
+    if (ipAddress) {
+      st.ipAddress = ipAddress;
+      st.ipRegisteredAt = Date.now();
+    }
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    return true;
+  }
+
+  resetStudentDevice(studentId: string): boolean {
+    const students = this.getAllStudents();
+    const st = students.find(s => s.id === studentId);
+    if (!st) return false;
+    st.deviceId = undefined;
+    st.deviceName = undefined;
+    st.deviceRegisteredAt = undefined;
+    st.deviceVerified = false;
+    st.allowOtherDevice = true;
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    return true;
+  }
+
+  recordRejectedAttendance(record: Omit<AttendanceRecord, 'id' | 'createdAt' | 'updatedAt'>): AttendanceRecord {
+    const attendance = this.getAllAttendance();
+    const newRecordId = `att_rej_${record.studentId}_${record.lectureId}_${Date.now()}`;
+    const newRecord: AttendanceRecord = {
+      ...record,
+      id: newRecordId,
+      status: 'REJECTED',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    attendance.push(newRecord);
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
+    return newRecord;
   }
 
   deleteStudent(studentId: string) {
@@ -1002,7 +1922,22 @@ class DatabaseService {
 
   // --- Subjects ---
   getAllSubjects(): Subject[] {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+    const raw: Subject[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBJECTS) || '[]');
+    const seenIds = new Set<string>();
+    const unique: Subject[] = [];
+    let hasDupes = false;
+    for (const sub of raw) {
+      if (sub && sub.id && !seenIds.has(sub.id)) {
+        seenIds.add(sub.id);
+        unique.push(sub);
+      } else {
+        hasDupes = true;
+      }
+    }
+    if (hasDupes) {
+      localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(unique));
+    }
+    return unique;
   }
 
   getSubjectsBySemester(semester?: number): Subject[] {
@@ -1068,6 +2003,7 @@ class DatabaseService {
     const facultyLng = lec.facultyLongitude ?? settings.longitude ?? 72.63692;
     const newLec: Lecture = {
       ...lec,
+      lectureNumber: lec.lectureNumber || `Lecture ${(lectures.filter(l => l.subjectId === lec.subjectId).length + 1).toString().padStart(2, '0')}`,
       facultyLatitude: facultyLat,
       facultyLongitude: facultyLng,
       geofenceRadiusMeters: lec.geofenceRadiusMeters ?? 100,
@@ -1093,7 +2029,7 @@ class DatabaseService {
     localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify([]));
   }
 
-  updateLectureStatus(lectureId: string, status: 'ACTIVE' | 'UPCOMING' | 'CLOSED') {
+  updateLectureStatus(lectureId: string, status: 'ACTIVE' | 'UPCOMING' | 'CLOSED' | 'CANCELLED') {
     const lectures = this.getAllLectures();
     const idx = lectures.findIndex(l => l.id === lectureId);
     if (idx !== -1) {
@@ -1202,7 +2138,6 @@ class DatabaseService {
     }
 
     // Enforce 1 Device & 1 IP address bound to student enrollment number
-    // Other devices cannot scan or mark attendance for this enrollment number & face
     const currentDevice = getDeviceInfo(student?.enrollmentNumber);
     const recordedDeviceId = record.deviceId || currentDevice.deviceId;
     const recordedIp = record.ipAddress || student?.ipAddress || currentDevice.ipAddress;
@@ -1215,17 +2150,13 @@ class DatabaseService {
       ...record,
       id: newRecordId,
       studentEmail: normalizedEmail,
-      verificationMethod: record.verificationMethod || '3_FACTOR_100M_CODE_FACE_DEVICE',
+      verificationMethod: record.verificationMethod || 'GEOFENCE_PASSCODE_DEVICE',
       qrVerified: record.qrVerified !== undefined ? record.qrVerified : true,
       facultyDistanceMeters: record.facultyDistanceMeters !== undefined ? record.facultyDistanceMeters : record.distanceMeters,
-      faceVerified: record.faceVerified ?? true,
-      faceConfidence: record.faceConfidence ?? 98.6,
-      livenessVerified: record.livenessVerified ?? true,
       deviceVerified: record.deviceVerified ?? true,
       deviceMatched: record.deviceMatched !== undefined ? record.deviceMatched : isDeviceMatched,
       deviceId: recordedDeviceId,
       ipAddress: recordedIp,
-      facePhotoSnapshot: record.facePhotoSnapshot || student?.facePhotoUrl,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -1263,14 +2194,479 @@ class DatabaseService {
     }
   }
 
-  deleteAttendanceRecord(attendanceId: string) {
-    let attendance = this.getAllAttendance();
-    attendance = attendance.filter(a => a.id !== attendanceId);
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
+  clearAllAttendance() {
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
   }
 
-  clearAttendanceRecords() {
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
+  /**
+   * Enforces 1-year (365 days minimum) data retention policy.
+   * Records within the retention period are guaranteed NEVER to be deleted.
+   */
+  enforceDataRetention(): { cleanedCount: number; retainedCount: number; retentionDays: number } {
+    const settings = this.getCollegeSettings();
+    const retentionDays = Math.max(settings.retentionDays || 365, 365);
+    const cutoffTimestamp = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+    
+    const records = this.getAllAttendance();
+    const validRecords = records.filter(r => (r.createdAt || r.markedAt) >= cutoffTimestamp);
+    const cleanedCount = records.length - validRecords.length;
+    
+    if (cleanedCount > 0) {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(validRecords));
+    }
+    return { cleanedCount, retainedCount: validRecords.length, retentionDays };
+  }
+
+  /**
+   * Fetches full attendance history across the past 1 year with extensive filtering.
+   */
+  getAttendanceHistory(filters: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    semester?: number | 'ALL';
+    division?: string | 'ALL';
+    subjectId?: string | 'ALL';
+    lectureNumber?: string;
+    enrollmentNumber?: string;
+    status?: AttendanceStatus | 'ALL';
+    search?: string;
+    facultyId?: string;
+    page?: number;
+    pageSize?: number;
+    reportPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+  }): {
+    records: AttendanceHistoryItem[];
+    totalRecords: number;
+    presentCount: number;
+    absentCount: number;
+    rejectedCount: number;
+    lateCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  } {
+    this.ensureBaselineAccounts();
+    const allAttendance = this.getAllAttendance();
+    const lectures = this.getAllLectures();
+    const lectureMap = new Map<string, Lecture>();
+    lectures.forEach(l => lectureMap.set(l.id, l));
+
+    const today = new Date();
+    const todayIso = today.toISOString().split('T')[0];
+
+    let startIso = filters.startDate;
+    let endIso = filters.endDate;
+
+    if (filters.date) {
+      startIso = filters.date;
+      endIso = filters.date;
+    } else if (filters.reportPeriod === 'DAILY') {
+      startIso = todayIso;
+      endIso = todayIso;
+    } else if (filters.reportPeriod === 'WEEKLY') {
+      const weekAgo = new Date(today.getTime() - 7 * 86400000);
+      startIso = weekAgo.toISOString().split('T')[0];
+      endIso = todayIso;
+    } else if (filters.reportPeriod === 'MONTHLY') {
+      const monthAgo = new Date(today.getTime() - 30 * 86400000);
+      startIso = monthAgo.toISOString().split('T')[0];
+      endIso = todayIso;
+    } else if (filters.reportPeriod === 'YEARLY') {
+      const yearAgo = new Date(today.getTime() - 365 * 86400000);
+      startIso = yearAgo.toISOString().split('T')[0];
+      endIso = todayIso;
+    }
+
+    // Map each attendance record to AttendanceHistoryItem
+    const joinedRecords: AttendanceHistoryItem[] = allAttendance.map(a => {
+      const lec = lectureMap.get(a.lectureId);
+      const recDate = lec?.date || new Date(a.markedAt || a.createdAt).toISOString().split('T')[0];
+      return {
+        ...a,
+        lectureDate: recDate,
+        lectureNumber: lec?.lectureNumber || 'Lecture 01',
+        subjectName: lec?.subjectName || 'Subject Session',
+        subjectCode: lec?.subjectCode || 'N/A',
+        semester: lec?.semester || 5,
+        division: lec?.division || 'A',
+        facultyName: lec?.facultyName || 'Faculty',
+        room: lec?.room
+      };
+    });
+
+    const searchLower = (filters.search || '').trim().toLowerCase();
+
+    // Filter
+    const filtered = joinedRecords.filter(item => {
+      if (startIso && item.lectureDate < startIso) return false;
+      if (endIso && item.lectureDate > endIso) return false;
+
+      if (filters.semester && filters.semester !== 'ALL' && item.semester !== filters.semester) {
+        return false;
+      }
+      if (filters.division && filters.division !== 'ALL' && item.division !== filters.division) {
+        return false;
+      }
+      if (filters.subjectId && filters.subjectId !== 'ALL') {
+        const lec = lectureMap.get(item.lectureId);
+        const matchesSubject = lec?.subjectId === filters.subjectId || 
+                               lec?.subjectCode === filters.subjectId ||
+                               item.subjectCode === filters.subjectId;
+        if (!matchesSubject) return false;
+      }
+      if (filters.lectureNumber && filters.lectureNumber.trim()) {
+        const query = filters.lectureNumber.trim().toLowerCase();
+        if (!item.lectureNumber?.toString().toLowerCase().includes(query)) return false;
+      }
+      if (filters.enrollmentNumber && filters.enrollmentNumber.trim()) {
+        const query = filters.enrollmentNumber.trim().toUpperCase();
+        if (!item.enrollmentNumber.toUpperCase().includes(query)) return false;
+      }
+      if (filters.status && filters.status !== 'ALL' && item.status !== filters.status) {
+        return false;
+      }
+      if (filters.facultyId) {
+        const lec = lectureMap.get(item.lectureId);
+        if (lec && lec.facultyId && lec.facultyId !== filters.facultyId) {
+          // allow head/admin or match
+        }
+      }
+      if (searchLower) {
+        const matches = item.studentName.toLowerCase().includes(searchLower) ||
+                        item.enrollmentNumber.toLowerCase().includes(searchLower) ||
+                        item.rollNumber.toLowerCase().includes(searchLower) ||
+                        (item.studentEmail && item.studentEmail.toLowerCase().includes(searchLower)) ||
+                        item.subjectName.toLowerCase().includes(searchLower) ||
+                        item.subjectCode.toLowerCase().includes(searchLower);
+        if (!matches) return false;
+      }
+      return true;
+    });
+
+    // Sort descending by date, then markedAt
+    filtered.sort((a, b) => {
+      if (b.lectureDate !== a.lectureDate) {
+        return b.lectureDate.localeCompare(a.lectureDate);
+      }
+      return (b.markedAt || 0) - (a.markedAt || 0);
+    });
+
+    // Calculate status counts
+    const presentCount = filtered.filter(r => r.status === 'PRESENT').length;
+    const lateCount = filtered.filter(r => r.status === 'LATE').length;
+    const rejectedCount = filtered.filter(r => r.status === 'REJECTED').length;
+
+    // Estimate absent count in scope
+    let absentCount = 0;
+    // Pagination
+    const page = Math.max(1, filters.page || 1);
+    const pageSize = Math.max(5, filters.pageSize || 15);
+    const totalRecords = filtered.length;
+    const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+    return {
+      records: paginated,
+      totalRecords,
+      presentCount,
+      lateCount,
+      rejectedCount,
+      absentCount,
+      page,
+      pageSize,
+      totalPages
+    };
+  }
+
+  /**
+   * Fetches the complete attendance roster for a specific lecture session,
+   * showing PRESENT, LATE, REJECTED, and ABSENT statuses for every student in the class.
+   */
+  getLectureFullAttendanceList(lectureId: string): {
+    lecture?: Lecture;
+    entries: Array<{
+      student: Student;
+      status: AttendanceStatus;
+      record?: AttendanceRecord;
+      markedTimeStr?: string;
+      markedAt?: number;
+      distanceMeters?: number;
+      facultyDistanceMeters?: number;
+      rejectionReason?: string;
+      verificationMethod?: string;
+      deviceId?: string;
+      ipAddress?: string;
+      gmailNotificationSent?: boolean;
+    }>;
+    summary: {
+      totalEnrolled: number;
+      present: number;
+      late: number;
+      absent: number;
+      rejected: number;
+      attendancePercentage: number;
+    };
+  } {
+    this.ensureBaselineAccounts();
+    const lecture = this.getLectureById(lectureId);
+    if (!lecture) {
+      return {
+        entries: [],
+        summary: { totalEnrolled: 0, present: 0, late: 0, absent: 0, rejected: 0, attendancePercentage: 0 }
+      };
+    }
+
+    const students = this.getAllStudents().filter(s => 
+      s.semester === lecture.semester && (lecture.division === 'ALL' || s.division === lecture.division)
+    );
+    const records = this.getAttendanceForLecture(lectureId);
+
+    const entries = students.map(student => {
+      const studentEmailNorm = (student.email || '').trim().toLowerCase();
+      // Match by studentId, email, or enrollment
+      const matchedRecord = records.find(r => 
+        r.studentId === student.id ||
+        (r.studentEmail && r.studentEmail.toLowerCase() === studentEmailNorm) ||
+        (r.enrollmentNumber && r.enrollmentNumber.toUpperCase() === student.enrollmentNumber.toUpperCase())
+      );
+
+      if (matchedRecord) {
+        return {
+          student,
+          status: matchedRecord.status,
+          record: matchedRecord,
+          markedTimeStr: matchedRecord.markedTimeStr,
+          markedAt: matchedRecord.markedAt,
+          distanceMeters: matchedRecord.distanceMeters,
+          facultyDistanceMeters: matchedRecord.facultyDistanceMeters,
+          rejectionReason: matchedRecord.rejectionReason,
+          verificationMethod: matchedRecord.verificationMethod,
+          deviceId: matchedRecord.deviceId,
+          ipAddress: matchedRecord.ipAddress,
+          gmailNotificationSent: matchedRecord.gmailNotificationSent
+        };
+      } else {
+        return {
+          student,
+          status: 'ABSENT' as AttendanceStatus
+        };
+      }
+    });
+
+    const present = entries.filter(e => e.status === 'PRESENT').length;
+    const late = entries.filter(e => e.status === 'LATE').length;
+    const rejected = entries.filter(e => e.status === 'REJECTED').length;
+    const absent = entries.filter(e => e.status === 'ABSENT').length;
+    const totalEnrolled = students.length;
+    const attendancePercentage = totalEnrolled > 0
+      ? Math.round(((present + late) / totalEnrolled) * 100)
+      : 0;
+
+    return {
+      lecture,
+      entries,
+      summary: {
+        totalEnrolled,
+        present,
+        late,
+        absent,
+        rejected,
+        attendancePercentage
+      }
+    };
+  }
+
+  /**
+   * Calculates subject-wise attendance percentage for every student enrolled in the selected class.
+   * Formula: Attendance Percentage = (Number of Present Lectures / Total Conducted Lectures) * 100
+   *
+   * Strict Rules enforced:
+   * - Count only lectures for which an official attendance session was conducted.
+   * - Count a student as Present only when attendance is successfully verified and saved.
+   * - Count Absent as not present.
+   * - Do not count Rejected attempts as additional lectures or present.
+   * - Do not count cancelled lectures.
+   * - Exclude future lectures and sessions that have not been conducted.
+   * - Prevent duplicate attendance records for the same student and lecture.
+   * - If no lectures conducted: display 0% or N/A (Status: 'No Data').
+   */
+  calculateSubjectAttendanceStats(params: {
+    semester: number;
+    division?: string;
+    subjectId: string;
+    startDate?: string;
+    endDate?: string;
+    academicYear?: string;
+    thresholdPercent?: number;
+    facultyId?: string;
+  }): SubjectAttendanceSummary {
+    this.ensureBaselineAccounts();
+    const subjects = this.getAllSubjects();
+    const targetSubject = subjects.find(s => 
+      s.id === params.subjectId || 
+      (s.subjectCode && s.subjectCode.toUpperCase() === params.subjectId.toUpperCase())
+    ) || {
+      id: params.subjectId,
+      subjectName: 'Selected Subject',
+      subjectCode: params.subjectId,
+      semester: params.semester,
+      department: 'Information Technology'
+    };
+
+    const allLectures = this.getAllLectures();
+    const todayIso = new Date().toISOString().split('T')[0];
+
+    // Filter conducted lectures
+    const conductedLectures = allLectures.filter(l => {
+      if (l.semester !== params.semester) return false;
+      if (params.division && params.division !== 'ALL' && l.division !== params.division) return false;
+      
+      const matchesSubject = l.subjectId === targetSubject.id || 
+                             l.subjectCode === targetSubject.subjectCode;
+      if (!matchesSubject) return false;
+
+      // Rules:
+      // - Do not count cancelled lectures
+      if (l.status === 'CANCELLED') return false;
+      // - Exclude future lectures or unconducted sessions
+      if (l.status === 'UPCOMING') return false;
+      if (l.date > todayIso) return false;
+      
+      if (params.startDate && l.date < params.startDate) return false;
+      if (params.endDate && l.date > params.endDate) return false;
+      if (params.academicYear && l.academicYear && l.academicYear !== params.academicYear) return false;
+
+      return true;
+    });
+
+    const totalConductedLectures = conductedLectures.length;
+    const conductedLectureIds = new Set(conductedLectures.map(l => l.id));
+
+    // Get all students enrolled in class
+    const allStudents = this.getAllStudents();
+    const enrolledStudents = allStudents.filter(st => {
+      if (st.semester !== params.semester) return false;
+      if (params.division && params.division !== 'ALL' && st.division !== params.division) return false;
+      return true;
+    });
+
+    // Attendance records for conducted lectures
+    const allAttendance = this.getAllAttendance().filter(a => conductedLectureIds.has(a.lectureId));
+
+    const threshold = params.thresholdPercent ?? this.getCollegeSettings().attendanceThresholdPercent ?? 75;
+
+    const studentMetrics: SubjectAttendanceStudentMetric[] = enrolledStudents.map(student => {
+      const studentEmailNorm = (student.email || '').trim().toLowerCase();
+
+      // Prevent duplicate attendance records: count unique lectureIds
+      const verifiedLectureIds = new Set<string>();
+      allAttendance.forEach(a => {
+        const matchesStudent = a.studentId === student.id ||
+          (a.studentEmail && a.studentEmail.toLowerCase() === studentEmailNorm) ||
+          (a.enrollmentNumber && a.enrollmentNumber.toUpperCase() === student.enrollmentNumber.toUpperCase());
+
+        if (matchesStudent && (a.status === 'PRESENT' || a.status === 'LATE')) {
+          verifiedLectureIds.add(a.lectureId);
+        }
+      });
+
+      const presentLectures = verifiedLectureIds.size;
+      const absentLectures = totalConductedLectures > 0
+        ? Math.max(0, totalConductedLectures - presentLectures)
+        : 0;
+
+      let attendancePercentage = 0;
+      let attendanceStatus: 'Eligible' | 'Short Attendance' | 'No Data' = 'No Data';
+
+      if (totalConductedLectures === 0) {
+        attendancePercentage = 0;
+        attendanceStatus = 'No Data';
+      } else {
+        attendancePercentage = Math.round((presentLectures / totalConductedLectures) * 100);
+        attendanceStatus = attendancePercentage >= threshold ? 'Eligible' : 'Short Attendance';
+      }
+
+      return {
+        studentId: student.id,
+        studentName: student.name,
+        enrollmentNumber: student.enrollmentNumber,
+        rollNumber: student.rollNumber,
+        studentEmail: student.email,
+        totalConductedLectures,
+        presentLectures,
+        absentLectures,
+        attendancePercentage,
+        attendanceStatus
+      };
+    });
+
+    const totalStudents = enrolledStudents.length;
+    const averageAttendancePercentage = totalStudents > 0 && totalConductedLectures > 0
+      ? Math.round(studentMetrics.reduce((acc, curr) => acc + curr.attendancePercentage, 0) / totalStudents)
+      : 0;
+
+    const studentsBelowThresholdCount = studentMetrics.filter(s => s.attendanceStatus === 'Short Attendance').length;
+
+    return {
+      subjectId: targetSubject.id,
+      subjectName: targetSubject.subjectName,
+      subjectCode: targetSubject.subjectCode,
+      semester: params.semester,
+      division: params.division || 'ALL',
+      totalStudents,
+      totalConductedLectures,
+      averageAttendancePercentage,
+      studentsBelowThresholdCount,
+      thresholdPercent: threshold,
+      students: studentMetrics
+    };
+  }
+
+  /**
+   * Semester-Wise Subject Summary
+   * Loads all subjects assigned to that semester from the database and returns:
+   * Subject | Conducted Lectures | Present | Absent | Attendance %
+   */
+  getSemesterSubjectsSummary(params: {
+    semester: number;
+    division?: string;
+    startDate?: string;
+    endDate?: string;
+    academicYear?: string;
+    facultyId?: string;
+  }): SemesterSubjectOverviewItem[] {
+    this.ensureBaselineAccounts();
+    const subjects = this.getSubjectsBySemester(params.semester);
+
+    return subjects.map(sub => {
+      const stats = this.calculateSubjectAttendanceStats({
+        semester: params.semester,
+        division: params.division,
+        subjectId: sub.id,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        academicYear: params.academicYear,
+        facultyId: params.facultyId
+      });
+
+      const totalPossibleAttendances = stats.totalConductedLectures * (stats.totalStudents || 1);
+      const totalPresent = stats.students.reduce((acc, s) => acc + s.presentLectures, 0);
+      const totalAbsent = stats.students.reduce((acc, s) => acc + s.absentLectures, 0);
+      const percentage = totalPossibleAttendances > 0
+        ? Math.round((totalPresent / totalPossibleAttendances) * 100)
+        : 0;
+
+      return {
+        subjectId: sub.id,
+        subjectName: sub.subjectName,
+        subjectCode: sub.subjectCode,
+        conductedLectures: stats.totalConductedLectures,
+        presentCount: totalPresent,
+        absentCount: totalAbsent,
+        attendancePercentage: percentage
+      };
+    });
   }
 }
 

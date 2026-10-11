@@ -26,6 +26,7 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
   const [isCreatingNewSubject, setIsCreatingNewSubject] = useState(false);
   const [semester, setSemester] = useState(5);
   const [division, setDivision] = useState('A');
+  const [lectureNumber, setLectureNumber] = useState('Lecture 01');
   const [room, setRoom] = useState('Room 101 - Lecture Hall');
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
@@ -90,6 +91,7 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
       subjectCode: sub.subjectCode,
       semester,
       division: division.toUpperCase(),
+      lectureNumber: lectureNumber.trim() || 'Lecture 01',
       room,
       date,
       startTime,
@@ -290,9 +292,14 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
               className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 hover:border-blue-300 transition"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded">
-                  {lec.subjectCode} • Sem {lec.semester} ({lec.division})
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                    {lec.subjectCode} • Sem {lec.semester} ({lec.division})
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                    {lec.lectureNumber || 'Lecture 01'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => handleToggleStatus(lec)}
@@ -303,7 +310,7 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
                     }`}
                     title="Click to toggle status"
                   >
-                    {lec.status}
+                    {lec.status === 'ACTIVE' ? 'ACTIVE' : 'STOPPED'}
                   </button>
                   <button
                     onClick={() => handleDeleteLecture(lec.id, lec.subjectName)}
@@ -323,28 +330,47 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
               <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{lec.date}</span>
+                  <span>Date: {lec.date}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{lec.startTime} – {lec.endTime}</span>
+                  <span>Time: {lec.startTime} – {lec.endTime}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{lec.room}</span>
+                  <span>Room: {lec.room}</span>
                 </div>
                 <div className="text-[11px] text-blue-700 font-semibold bg-blue-50/60 p-2 rounded-lg mt-2">
-                  Window: {lec.attendanceStart} – {lec.attendanceEnd}
+                  Attendance Window: {lec.attendanceStart} – {lec.attendanceEnd}
                 </div>
               </div>
 
-              <button
-                onClick={() => onOpenLiveAttendance(lec)}
-                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
-              >
-                <Radio className="w-3.5 h-3.5" />
-                Open Live Attendance
-              </button>
+              <div className="flex items-center gap-2 pt-1">
+                {lec.status === 'ACTIVE' ? (
+                  <button
+                    onClick={() => handleToggleStatus(lec)}
+                    className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                  >
+                    <Radio className="w-3.5 h-3.5" />
+                    Stop Attendance
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleToggleStatus(lec)}
+                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                  >
+                    <Radio className="w-3.5 h-3.5" />
+                    Start Attendance
+                  </button>
+                )}
+                <button
+                  onClick={() => onOpenLiveAttendance(lec)}
+                  className="py-2 px-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                  title="Open live monitoring panel"
+                >
+                  Live Panel
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -444,16 +470,29 @@ export const FacultyLectures: React.FC<FacultyLecturesProps> = ({
                 )}
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Classroom / Lab *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Lab 302 / Seminar Hall A"
-                  value={room}
-                  onChange={(e) => setRoom(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Lecture Number *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Lecture 01"
+                    value={lectureNumber}
+                    onChange={(e) => setLectureNumber(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Classroom / Lab *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Lab 302 / Seminar Hall A"
+                    value={room}
+                    onChange={(e) => setRoom(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                  />
+                </div>
               </div>
 
               <div>

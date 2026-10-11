@@ -119,7 +119,6 @@ export const App: React.FC = () => {
           division: 'A',
           rollNumber: '01',
           phone: '',
-          faceEnrollmentStatus: true,
           createdAt: Date.now()
         };
         db.addStudent(student);

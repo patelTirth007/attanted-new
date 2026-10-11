@@ -19,14 +19,11 @@ import {
   CheckCircle2,
   ExternalLink,
   QrCode,
-  ScanFace,
   Smartphone,
-  Camera,
   Sparkles,
   GraduationCap
 } from 'lucide-react';
-import { StudentBiometricModal } from '../components/StudentBiometricModal';
-import { generateStudentFaceSvg } from '../services/biometrics';
+import { generateStudentAvatarSvg } from '../services/biometrics';
 
 interface StudentDashboardProps {
   student: Student;
@@ -54,7 +51,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [geofenceResult, setGeofenceResult] = useState<GeofenceVerificationResult | undefined>();
   const [loadingGps, setLoadingGps] = useState(false);
   const [unreadEmailsCount, setUnreadEmailsCount] = useState(0);
-  const [showBiometricModal, setShowBiometricModal] = useState<boolean>(false);
 
   const availableSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -128,10 +124,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Distinct subjects for active semester and their attendance analytics
   const allSubjects = db.getAllSubjects();
-  const semesterSubjects = allSubjects.filter(s => s.semester === activeSemester);
+  const seenSubIds = new Set<string>();
+  const uniqueAllSubjects: typeof allSubjects = [];
+  for (const s of allSubjects) {
+    if (s && s.id && !seenSubIds.has(s.id)) {
+      seenSubIds.add(s.id);
+      uniqueAllSubjects.push(s);
+    }
+  }
+
+  const semesterSubjects = uniqueAllSubjects.filter(s => s.semester === activeSemester);
   const subjectsToDisplay = semesterSubjects.length > 0 
     ? semesterSubjects 
-    : allSubjects.filter(s => s.semester === student.semester);
+    : uniqueAllSubjects.filter(s => s.semester === student.semester);
 
   const subjectsWithStats = subjectsToDisplay.map((sub) => {
     const subjectLecs = lectures.filter(l => l.subjectId === sub.id || l.subjectCode === sub.subjectCode);
@@ -221,14 +226,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setShowBiometricModal(true)}
-            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition flex items-center gap-1.5 shadow-sm"
-          >
-            <ScanFace className="w-4 h-4 text-blue-600" />
-            Face Scan & Device Profile
-          </button>
-
           {onNavigateToNotifications && (
             <button
               onClick={onNavigateToNotifications}
@@ -248,12 +245,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       </div>
 
-      {/* Step 1: Student Biometric Face Scan & Registered Device Card */}
+      {/* Student Registered Device & Security Card */}
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-sky-400 shadow-md bg-slate-800 shrink-0">
             <img
-              src={currentStudent.facePhotoUrl || generateStudentFaceSvg(currentStudent.name, currentStudent.enrollmentNumber)}
+              src={currentStudent.avatarUrl || generateStudentAvatarSvg(currentStudent.name, currentStudent.enrollmentNumber)}
               alt={currentStudent.name}
               className="w-full h-full object-cover"
             />
@@ -261,10 +258,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-400/40">
-                Step 1 Biometric Security
+                1 Student : 1 Device Security
               </span>
               <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Face Enrolled in Faculty Section
+                <CheckCircle2 className="w-3.5 h-3.5" /> Bound to this Account ✓
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -273,23 +270,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 {currentStudent.deviceName || 'Trusted Student Device'}
               </span>
               <span className="text-[10px] font-mono text-slate-400">
-                ({currentStudent.deviceId || 'DEV-VERIFIED'})
+                ({currentStudent.deviceId || 'DEV-BOUND'})
               </span>
             </div>
             <p className="text-[11px] text-slate-300/80 mt-1">
-              Required for attendance: At lecture time, <strong>(1) 100m Location</strong>, <strong>(2) Session Code</strong>, and <strong>(3) Device & Face Scan</strong> must all match to approve attendance.
+              Attendance Requirements: At lecture time, <strong>(1) 100m Location Proximity</strong> and <strong>(2) Session Code / QR Scan</strong> from this registered phone.
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowBiometricModal(true)}
-          className="self-start sm:self-auto px-4 py-2.5 bg-sky-500 hover:bg-sky-600 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
-        >
-          <Camera className="w-3.5 h-3.5 text-slate-950" />
-          Update Face Scan / Device
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 bg-white/10 px-3 py-2 rounded-xl border border-white/10 text-xs">
+          <Smartphone className="w-4 h-4 text-sky-300" />
+          <span className="font-mono text-sky-200 text-[11px]">{currentStudent.ipAddress || '192.168.101.45'}</span>
+        </div>
       </div>
 
       {/* Metrics Cards */}
@@ -425,8 +418,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">All Subjects in Semester {activeSemester} ({semesterSubjects.length} courses)</option>
-              {semesterSubjects.map(sub => (
-                <option key={sub.id} value={sub.id}>
+              {semesterSubjects.map((sub, idx) => (
+                <option key={`sub-opt-${sub.id}-${idx}`} value={sub.id}>
                   {sub.subjectName} ({sub.subjectCode})
                 </option>
               ))}
@@ -601,8 +594,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSubjectsWithStats.map((sub) => (
-            <div key={sub.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hover:border-blue-300 transition">
+          {filteredSubjectsWithStats.map((sub, idx) => (
+            <div key={`sub-card-${sub.id}-${idx}`} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hover:border-blue-300 transition">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 truncate pr-2" title={sub.name}>{sub.name}</span>
                 <span className={`text-xs font-black px-2 py-0.5 rounded ${

@@ -14,11 +14,10 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Mail,
-  ScanFace,
   Smartphone,
-  Camera
+  RotateCcw
 } from 'lucide-react';
-import { generateStudentFaceSvg } from '../services/biometrics';
+import { generateStudentAvatarSvg } from '../services/biometrics';
 
 export const FacultyStudents: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -66,8 +65,7 @@ export const FacultyStudents: React.FC = () => {
       semester,
       division: division.trim().toUpperCase(),
       rollNumber: rollNumber.trim() || '01',
-      phone: phone.trim() || '+91 98000 00000',
-      faceEnrollmentStatus: true
+      phone: phone.trim() || '+91 98000 00000'
     });
 
     loadStudents();
@@ -87,6 +85,18 @@ export const FacultyStudents: React.FC = () => {
       loadStudents();
       setFeedback(`Removed student "${studentName}" from roster.`);
       setTimeout(() => setFeedback(null), 3000);
+    }
+  };
+
+  const handleResetDevice = (s: Student) => {
+    if (window.confirm(`Authorize Device Reset for ${s.name} (${s.enrollmentNumber})?\n\nThis will unbind their previously registered phone (${s.deviceName || s.deviceId || 'Primary Device'}) and authorize registration of their new phone.`)) {
+      db.resetStudentDevice(s.id);
+      loadStudents();
+      if (selectedStudentForBio?.id === s.id) {
+        setSelectedStudentForBio(prev => prev ? { ...prev, deviceId: undefined, deviceName: undefined, deviceVerified: false } : null);
+      }
+      setFeedback(`✅ Authorized device reset for ${s.name} (${s.enrollmentNumber}). Student can now bind their new phone on next login.`);
+      setTimeout(() => setFeedback(null), 4500);
     }
   };
 
@@ -128,8 +138,7 @@ export const FacultyStudents: React.FC = () => {
           semester: sem,
           division: div.toUpperCase(),
           rollNumber: roll,
-          phone: mobile,
-          faceEnrollmentStatus: true
+          phone: mobile
         });
       }
     }
@@ -316,7 +325,7 @@ export const FacultyStudents: React.FC = () => {
                   <th className="py-3 px-4">Roll No</th>
                   <th className="py-3 px-4">Enrollment</th>
                   <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Biometric Face Record & Device</th>
+                  <th className="py-3 px-4">Registered Device & IP</th>
                   <th className="py-3 px-4">Registered Email ID (Gmail)</th>
                   <th className="py-3 px-4">Semester & Div</th>
                   <th className="py-3 px-4">Single Email Status</th>
@@ -332,24 +341,24 @@ export const FacultyStudents: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <div 
                         onClick={() => setSelectedStudentForBio(s)}
-                        className="flex items-center gap-2 cursor-pointer group"
-                        title="Click to view full Biometric Face Record & Device details"
+                        className="flex items-center gap-2.5 cursor-pointer group"
+                        title="Click to view full Registered Device details & reset option"
                       >
                         <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 group-hover:border-blue-500 shadow-xs shrink-0 bg-slate-100 flex items-center justify-center">
                           <img
-                            src={s.facePhotoUrl || generateStudentFaceSvg(s.name, s.enrollmentNumber)}
+                            src={s.avatarUrl || generateStudentAvatarSvg(s.name, s.enrollmentNumber)}
                             alt={s.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
                         <div className="text-[11px] leading-tight">
                           <span className="font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-700">
-                            <ScanFace className="w-3 h-3 text-sky-600" />
-                            Face Enrolled ✓
+                            <Smartphone className="w-3 h-3 text-blue-600" />
+                            {s.deviceName || 'Registered Device'}
                           </span>
-                          <span className="text-[10px] text-slate-500 flex items-center gap-0.5 mt-0.5 truncate max-w-[140px]">
-                            <Smartphone className="w-2.5 h-2.5 text-slate-400" />
-                            {s.deviceName || 'Trusted Device'}
+                          <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-0.5 mt-0.5">
+                            <Check className="w-2.5 h-2.5 text-emerald-600" />
+                            Bound to Account ✓
                           </span>
                           <span className="text-[9px] font-mono text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-100 flex items-center gap-0.5 mt-0.5 w-fit">
                             IP: {s.ipAddress || '192.168.101.45'}
@@ -370,7 +379,14 @@ export const FacultyStudents: React.FC = () => {
                         Verified Active
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => handleResetDevice(s)}
+                        className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
+                        title="Authorized Device Reset (If student changed phone)"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleDeleteStudent(s.id, s.name)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
@@ -566,18 +582,18 @@ export const FacultyStudents: React.FC = () => {
         </div>
       )}
 
-      {/* Student Biometric Identification & Device Card Modal */}
+      {/* Student Registered Device Details Modal */}
       {selectedStudentForBio && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                  <ScanFace className="w-6 h-6" />
+                  <Smartphone className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900">Student Biometric Record</h3>
-                  <p className="text-[11px] text-slate-500">Enrolled Face Scan & Registered Device</p>
+                  <h3 className="text-base font-black text-slate-900">Student Device & Hardware Profile</h3>
+                  <p className="text-[11px] text-slate-500">1 Student : 1 Registered Device Anti-Proxy Security</p>
                 </div>
               </div>
               <button
@@ -588,37 +604,24 @@ export const FacultyStudents: React.FC = () => {
               </button>
             </div>
 
-            {/* Enrolled Face Photo Display */}
-            <div className="bg-slate-950 rounded-2xl p-4 flex flex-col items-center justify-center border-2 border-slate-800 relative overflow-hidden">
-              <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-sky-400/80 shadow-[0_0_20px_rgba(56,189,248,0.3)] bg-slate-900">
+            {/* Student Avatar & Basic Info */}
+            <div className="bg-gradient-to-r from-slate-900 to-blue-950 rounded-2xl p-4 flex items-center gap-3.5 border border-slate-800 text-white">
+              <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-sky-400/80 shadow-md bg-slate-900 shrink-0">
                 <img
-                  src={selectedStudentForBio.facePhotoUrl || generateStudentFaceSvg(selectedStudentForBio.name, selectedStudentForBio.enrollmentNumber)}
+                  src={selectedStudentForBio.avatarUrl || generateStudentAvatarSvg(selectedStudentForBio.name, selectedStudentForBio.enrollmentNumber)}
                   alt={selectedStudentForBio.name}
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold text-sky-300 bg-sky-950/80 px-2.5 py-0.5 rounded-full border border-sky-500/40 flex items-center gap-1">
-                  <ScanFace className="w-3 h-3 text-sky-400" />
-                  BIOMETRIC ENROLLED & ACTIVE
-                </span>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-white truncate">{selectedStudentForBio.name}</h4>
+                <p className="font-mono text-xs font-bold text-sky-300">{selectedStudentForBio.enrollmentNumber}</p>
+                <span className="text-[10px] text-slate-300">Sem {selectedStudentForBio.semester} • Div {selectedStudentForBio.division} • Roll {selectedStudentForBio.rollNumber}</span>
               </div>
             </div>
 
             {/* Student & Device Details */}
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Student Name</span>
-                <span className="font-bold text-slate-900">{selectedStudentForBio.name}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Enrollment Number</span>
-                <span className="font-mono font-bold text-blue-700">{selectedStudentForBio.enrollmentNumber}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Semester & Div</span>
-                <span className="font-semibold text-slate-800">Sem {selectedStudentForBio.semester} - Div {selectedStudentForBio.division}</span>
-              </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Registered Email</span>
                 <span className="font-mono text-slate-700 text-[11px]">{selectedStudentForBio.email}</span>
@@ -633,7 +636,14 @@ export const FacultyStudents: React.FC = () => {
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Device Hardware ID</span>
                 <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded font-bold">
-                  {selectedStudentForBio.deviceId || 'DEV-VERIFIED'}
+                  {selectedStudentForBio.deviceId || 'DEV-BOUND'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Device Binding Status</span>
+                <span className="font-bold text-emerald-700 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Authorized & Bound ✓
                 </span>
               </div>
               <div className="flex justify-between py-1">
@@ -647,17 +657,25 @@ export const FacultyStudents: React.FC = () => {
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
-                <strong>Anti-Proxy Security Enforcement:</strong> 1 Device & 1 IP address is bound to Enrollment <strong>{selectedStudentForBio.enrollmentNumber}</strong>. No other device can scan or mark attendance for this student. Absent students cannot have their attendance filled by peers.
+                <strong>Anti-Proxy Security Enforcement:</strong> 1 Device & 1 IP address is bound to Enrollment <strong>{selectedStudentForBio.enrollmentNumber}</strong>. If a student changes their phone, click Authorize Device Reset below to allow new device binding.
               </span>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleResetDevice(selectedStudentForBio)}
+                className="flex-1 py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Authorize Device Reset
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedStudentForBio(null)}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
+                className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition"
               >
-                Close Identification Card
+                Close
               </button>
             </div>
           </div>

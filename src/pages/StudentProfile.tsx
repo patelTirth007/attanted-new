@@ -2,15 +2,22 @@ import React, { useState } from 'react';
 import { Student } from '../types';
 import { db } from '../services/db';
 import { notificationService } from '../services/notificationService';
-import { User, Shield, Mail, CheckCircle2, FileText, Bell, BookOpen, ExternalLink, Smartphone } from 'lucide-react';
-import { generateStudentFaceSvg } from '../services/biometrics';
+import { 
+  Shield, Mail, CheckCircle2, FileText, BookOpen, ExternalLink, Smartphone, 
+  Sparkles
+} from 'lucide-react';
+import { generateStudentAvatarSvg } from '../services/biometrics';
 
 interface StudentProfileProps {
   student: Student;
 }
 
 export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
-  const studentEmail = student.email || `${student.enrollmentNumber.toLowerCase()}@college.edu`;
+  const [currentStudent] = useState<Student>(() => {
+    return db.getStudentById(student.id) || student;
+  });
+
+  const studentEmail = currentStudent.email || `${currentStudent.enrollmentNumber.toLowerCase()}@college.edu`;
   const notifs = notificationService.getNotificationsForEmail(studentEmail);
   const subjects = db.getAllSubjects();
 
@@ -28,14 +35,14 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
           <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-blue-600/40 mx-auto shadow-md bg-slate-100 flex items-center justify-center">
             <img
-              src={student.facePhotoUrl || generateStudentFaceSvg(student.name, student.enrollmentNumber)}
-              alt={student.name}
+              src={currentStudent.avatarUrl || generateStudentAvatarSvg(currentStudent.name, currentStudent.enrollmentNumber)}
+              alt={currentStudent.name}
               className="w-full h-full object-cover"
             />
           </div>
           <div className="text-center">
-            <h3 className="text-lg font-bold text-slate-900">{student.name}</h3>
-            <p className="text-xs text-slate-500 font-mono font-bold text-blue-700">{student.enrollmentNumber}</p>
+            <h3 className="text-lg font-bold text-slate-900">{currentStudent.name}</h3>
+            <p className="text-xs text-slate-500 font-mono font-bold text-blue-700">{currentStudent.enrollmentNumber}</p>
           </div>
 
           <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
@@ -45,19 +52,19 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-400">Department</span>
-              <span className="font-semibold text-slate-800">{student.department}</span>
+              <span className="font-semibold text-slate-800">{currentStudent.department}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-400">Semester & Div</span>
-              <span className="font-semibold text-slate-800">Sem {student.semester} - Div {student.division}</span>
+              <span className="font-semibold text-slate-800">Sem {currentStudent.semester} - Div {currentStudent.division}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-400">Roll Number</span>
-              <span className="font-semibold text-slate-800">{student.rollNumber}</span>
+              <span className="font-semibold text-slate-800">{currentStudent.rollNumber}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-400">Mobile</span>
-              <span className="font-semibold text-slate-800">{student.phone}</span>
+              <span className="font-semibold text-slate-800">{currentStudent.phone}</span>
             </div>
           </div>
 
@@ -74,12 +81,12 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
             </div>
             <div className="text-[11px] text-slate-600">
               <span className="text-slate-400 block text-[10px]">Registered Hardware</span>
-              <span className="font-bold text-slate-800 truncate block">{student.deviceName || 'Student Device'}</span>
-              <span className="font-mono text-[10px] text-slate-500 block truncate">{student.deviceId || 'DEV-BOUND'}</span>
+              <span className="font-bold text-slate-800 truncate block">{currentStudent.deviceName || 'Student Device'}</span>
+              <span className="font-mono text-[10px] text-slate-500 block truncate">{currentStudent.deviceId || 'DEV-BOUND'}</span>
             </div>
             <div className="text-[11px] text-slate-600 pt-1 border-t border-blue-200/50">
               <span className="text-slate-400 block text-[10px]">Traced Network IP</span>
-              <span className="font-mono font-bold text-blue-800">{student.ipAddress || '192.168.101.45'}</span>
+              <span className="font-mono font-bold text-blue-800">{currentStudent.ipAddress || '192.168.101.45'}</span>
             </div>
           </div>
         </div>
@@ -149,7 +156,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student }) => {
               Official Attendance Policy Rules
             </h5>
             <p>• <strong>Strict 1 Email = 1 Attendance:</strong> A student cannot mark duplicate attendance for the same lecture with their email ID.</p>
-            <p>• <strong>Campus Geofence:</strong> Must be physically inside the 2 KM college perimeter when submitting attendance.</p>
+            <p>• <strong>Campus Geofence:</strong> Must be physically within proximity (≤100m of faculty location) when submitting attendance.</p>
+            <p>• <strong>One Student – One Registered Device:</strong> Attendance is accepted only from your authenticated bound phone or computer.</p>
             <p>• <strong>Audit Trail:</strong> Every mark dispatches an instant Gmail alert with timestamp, location, and session code.</p>
           </div>
         </div>

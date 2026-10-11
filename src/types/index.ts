@@ -19,9 +19,7 @@ export interface Student {
   division: string;
   rollNumber: string;
   phone: string;
-  faceEnrollmentStatus?: boolean;
-  faceEmbedding?: string;
-  facePhotoUrl?: string;
+  avatarUrl?: string;
   deviceId?: string;
   deviceName?: string;
   deviceRegisteredAt?: number;
@@ -30,6 +28,20 @@ export interface Student {
   ipRegisteredAt?: number;
   allowOtherDevice?: boolean;
   createdAt: number;
+  lastPromotedAt?: number;
+  previousSemester?: number;
+}
+
+export interface EnrollmentRegistryEntry {
+  enrollmentNumber: string;
+  name: string;
+  semester: number;
+  department: string;
+  division: string;
+  rollNumber: string;
+  createdAt: number;
+  promotedAt?: number;
+  promotedByRole?: Role;
 }
 
 export interface Faculty {
@@ -51,7 +63,7 @@ export interface Subject {
   department: string;
 }
 
-export type LectureStatus = 'ACTIVE' | 'UPCOMING' | 'CLOSED';
+export type LectureStatus = 'ACTIVE' | 'UPCOMING' | 'CLOSED' | 'CANCELLED';
 
 export interface Lecture {
   id: string;
@@ -71,10 +83,12 @@ export interface Lecture {
   status: LectureStatus;
   facultyLatitude?: number;
   facultyLongitude?: number;
-  geofenceRadiusMeters?: number; // 100m handheld proximity
+  geofenceRadiusMeters?: number; // 100m proximity
   qrSessionToken?: string;
   qrPasscode?: string;
   qrGeneratedAt?: number;
+  lectureNumber?: string | number;
+  academicYear?: string;
 }
 
 export interface AttendanceQRPayload {
@@ -86,14 +100,14 @@ export interface AttendanceQRPayload {
   room: string;
   facultyLat: number;
   facultyLng: number;
-  allowedRadiusMeters: number; // 100 meters handheld proximity
+  allowedRadiusMeters: number; // 100 meters proximity
   passcode: string;
   token: string;
   timestamp: number;
   expiresAt: number;
 }
 
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'MANUALLY_CORRECTED';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'MANUALLY_CORRECTED' | 'REJECTED';
 
 export interface AttendanceRecord {
   id: string;
@@ -113,14 +127,11 @@ export interface AttendanceRecord {
   verificationMethod: string;
   qrVerified?: boolean;
   facultyDistanceMeters?: number;
-  faceVerified?: boolean;
-  faceConfidence?: number;
-  livenessVerified?: boolean;
   deviceVerified?: boolean;
   deviceMatched?: boolean;
   deviceId?: string;
   ipAddress?: string;
-  facePhotoSnapshot?: string;
+  rejectionReason?: string;
   correctionReason?: string;
   correctedByFacultyId?: string;
   gmailNotificationSent?: boolean;
@@ -136,7 +147,57 @@ export interface CollegeSettings {
   longitude: number;
   allowedRadiusMeters: number;
   minimumGpsAccuracy: number;
+  retentionDays?: number; // 365 days minimum one-year retention
+  attendanceThresholdPercent?: number; // e.g. 75%
   updatedAt: number;
+}
+
+export interface SubjectAttendanceStudentMetric {
+  studentId: string;
+  studentName: string;
+  enrollmentNumber: string;
+  rollNumber: string;
+  studentEmail: string;
+  totalConductedLectures: number;
+  presentLectures: number;
+  absentLectures: number;
+  attendancePercentage: number;
+  attendanceStatus: 'Eligible' | 'Short Attendance' | 'No Data';
+}
+
+export interface SubjectAttendanceSummary {
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  semester: number;
+  division?: string;
+  totalStudents: number;
+  totalConductedLectures: number;
+  averageAttendancePercentage: number;
+  studentsBelowThresholdCount: number;
+  thresholdPercent: number;
+  students: SubjectAttendanceStudentMetric[];
+}
+
+export interface SemesterSubjectOverviewItem {
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  conductedLectures: number;
+  presentCount: number;
+  absentCount: number;
+  attendancePercentage: number;
+}
+
+export interface AttendanceHistoryItem extends AttendanceRecord {
+  lectureDate: string;
+  lectureNumber?: string | number;
+  subjectName: string;
+  subjectCode: string;
+  semester: number;
+  division: string;
+  facultyName: string;
+  room?: string;
 }
 
 export interface GmailNotification {

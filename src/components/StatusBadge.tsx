@@ -30,6 +30,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
           ABSENT
         </span>
       );
+    case 'REJECTED':
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300 ${className}`}>
+          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+          REJECTED
+        </span>
+      );
     case 'EXCUSED':
       return (
         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 ${className}`}>
