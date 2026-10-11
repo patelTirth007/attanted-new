@@ -15,7 +15,6 @@ import { GmailNotificationsView } from './pages/GmailNotificationsView';
 import { FacultyDashboard } from './pages/FacultyDashboard';
 import { FacultyLiveAttendance } from './pages/FacultyLiveAttendance';
 import { FacultyLectures } from './pages/FacultyLectures';
-import { FacultyStudents } from './pages/FacultyStudents';
 import { FacultySubjects } from './pages/FacultySubjects';
 import { FacultyReports } from './pages/FacultyReports';
 import { FacultySettings } from './pages/FacultySettings';
@@ -302,7 +301,6 @@ export const App: React.FC = () => {
                     setSelectedLecture(lec);
                     navigateTo('/faculty/attendance');
                   }}
-                  onNavigateToStudents={() => navigateTo('/faculty/students')}
                   onNavigateToReports={() => navigateTo('/faculty/reports')}
                   onNavigateToSettings={() => navigateTo('/faculty/settings')}
                 />
@@ -328,7 +326,16 @@ export const App: React.FC = () => {
               )}
 
               {currentRoute === '/faculty/students' && (
-                <FacultyStudents />
+                <FacultyDashboard
+                  faculty={currentFaculty}
+                  onCreateLecture={() => navigateTo('/faculty/lectures')}
+                  onOpenLiveAttendance={(lec) => {
+                    setSelectedLecture(lec);
+                    navigateTo('/faculty/attendance');
+                  }}
+                  onNavigateToReports={() => navigateTo('/faculty/reports')}
+                  onNavigateToSettings={() => navigateTo('/faculty/settings')}
+                />
               )}
 
               {currentRoute === '/faculty/subjects' && (

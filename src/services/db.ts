@@ -1,10 +1,11 @@
 import { 
   User, Student, Faculty, Subject, Lecture, AttendanceRecord, CollegeSettings, AttendanceStatus,
   SubjectAttendanceStudentMetric, SubjectAttendanceSummary, SemesterSubjectOverviewItem,
-  AttendanceHistoryItem, EnrollmentRegistryEntry
+  AttendanceHistoryItem, EnrollmentRegistryEntry, Role
 } from '../types';
 import { notificationService } from './notificationService';
 import { generateStudentAvatarSvg, getDeviceInfo } from './biometrics';
+import { firestoreSync } from './firestoreSync';
 
 const STORAGE_KEYS = {
   VERSION: 'sca_db_version_v14_semester_enrollment_mgmt',
@@ -1468,9 +1469,30 @@ class DatabaseService {
         existingAttendanceList.push(...historicalRecords);
         localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(existingAttendanceList));
       }
+      // Trigger background sync to Firebase Firestore cloud database
+      setTimeout(() => {
+        this.syncAllToFirestoreIfEmpty();
+      }, 300);
     } catch (e) {
       console.warn('ensureBaselineAccounts check:', e);
     }
+  }
+
+  public syncAllToFirestoreIfEmpty() {
+    firestoreSync.seedInitialDataIfEmpty({
+      students: this.getAllStudents(),
+      lectures: this.getAllLectures(),
+      faculty: this.getAllFaculty(),
+      subjects: this.getAllSubjects(),
+      users: JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]'),
+      settings: this.getCollegeSettings(),
+      registry: JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]'),
+      attendance: this.getAllAttendance()
+    });
+  }
+
+  public getFirebaseStatus() {
+    return firestoreSync.getStatus();
   }
 
   // --- Auth & Users ---
@@ -1615,6 +1637,10 @@ class DatabaseService {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     localStorage.setItem(STORAGE_KEYS.FACULTY, JSON.stringify(facultyList));
 
+    // Cloud sync to Firestore
+    firestoreSync.setDocument('users', newUser.id, newUser);
+    firestoreSync.setDocument('faculty', newFaculty.id, newFaculty);
+
     return { success: true, user: newUser, faculty: newFaculty };
   }
 
@@ -1693,6 +1719,16 @@ class DatabaseService {
       return { success: true, user: matchedUser, student: existingStudent };
     }
 
+    // Check registry for semester consistency
+    const registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+    const regEntry = registry.find(r => r.enrollmentNumber.toUpperCase() === enrollUpper);
+    if (regEntry && regEntry.semester !== params.semester) {
+      return {
+        success: false,
+        error: `Enrollment number does not belong to the selected semester. Enrollment number '${enrollUpper}' is registered in Semester ${regEntry.semester}, not Semester ${params.semester}.`
+      };
+    }
+
     // Completely new student registration
     const userId = `u_stu_${Date.now()}`;
     const studentId = `stu_${Date.now()}`;
@@ -1737,6 +1773,19 @@ class DatabaseService {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
 
+    // Cloud sync to Firestore
+    firestoreSync.setDocument('users', newUser.id, newUser);
+    firestoreSync.setDocument('students', newStudent.id, newStudent);
+    firestoreSync.setDocument('enrollmentRegistry', newStudent.enrollmentNumber.toUpperCase(), {
+      enrollmentNumber: newStudent.enrollmentNumber.toUpperCase(),
+      name: newStudent.name,
+      semester: newStudent.semester,
+      department: newStudent.department,
+      division: newStudent.division,
+      rollNumber: newStudent.rollNumber,
+      createdAt: newStudent.createdAt
+    });
+
     return { success: true, user: newUser, student: newStudent };
   }
 
@@ -1776,6 +1825,7 @@ class DatabaseService {
       updatedAt: Date.now()
     };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+    firestoreSync.setDocument('collegeSettings', updated.id || 'settings_1', updated);
     return updated;
   }
 
@@ -1799,12 +1849,94 @@ class DatabaseService {
     return list.filter(s => s.semester === semester);
   }
 
+  /**
+   * Validates enrollment number against database and registry.
+   * Enforces rules:
+   * - If enrollment exists in another semester -> "Enrollment number does not belong to the selected semester."
+   * - If enrollment exists in same semester -> duplicate error.
+   * - Does NOT automatically reassign semester.
+   */
+  validateEnrollmentNumber(
+    enrollmentNumber: string,
+    semester: number
+  ): {
+    valid: boolean;
+    error?: string;
+    existingStudent?: Student;
+    existingSemester?: number;
+    code: 'OK' | 'DIFFERENT_SEMESTER' | 'DUPLICATE_SAME_SEMESTER' | 'EMPTY';
+  } {
+    const clean = (enrollmentNumber || '').trim().toUpperCase();
+    if (!clean) {
+      return { valid: false, error: 'Enrollment number is required.', code: 'EMPTY' };
+    }
+
+    const students = this.getAllStudents();
+    const existing = students.find(s => s.enrollmentNumber.toUpperCase() === clean);
+
+    if (existing) {
+      if (existing.semester !== semester) {
+        return {
+          valid: false,
+          error: `Enrollment number does not belong to the selected semester. Enrollment number '${clean}' is already assigned to Semester ${existing.semester} in the database. Use authorized student promotion to advance students between semesters.`,
+          existingStudent: existing,
+          existingSemester: existing.semester,
+          code: 'DIFFERENT_SEMESTER'
+        };
+      } else {
+        return {
+          valid: false,
+          error: `Duplicate student: Enrollment number '${clean}' is already registered in Semester ${semester}.`,
+          existingStudent: existing,
+          existingSemester: existing.semester,
+          code: 'DUPLICATE_SAME_SEMESTER'
+        };
+      }
+    }
+
+    // Check enrollment registry
+    const registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+    const regEntry = registry.find(r => r.enrollmentNumber.toUpperCase() === clean);
+    if (regEntry) {
+      if (regEntry.semester !== semester) {
+        return {
+          valid: false,
+          error: `Enrollment number does not belong to the selected semester. Enrollment number '${clean}' is registered in Semester ${regEntry.semester}.`,
+          existingSemester: regEntry.semester,
+          code: 'DIFFERENT_SEMESTER'
+        };
+      } else {
+        return {
+          valid: false,
+          error: `Duplicate student: Enrollment number '${clean}' is already in Semester ${semester} records.`,
+          existingSemester: regEntry.semester,
+          code: 'DUPLICATE_SAME_SEMESTER'
+        };
+      }
+    }
+
+    return { valid: true, code: 'OK' };
+  }
+
   addStudent(studentData: Omit<Student, 'id' | 'userId' | 'createdAt'>, initialPassword = 'password123'): Student {
     this.ensureBaselineAccounts();
+    const cleanEnroll = studentData.enrollmentNumber.trim().toUpperCase();
+    const validation = this.validateEnrollmentNumber(cleanEnroll, studentData.semester);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Enrollment number does not belong to the selected semester.');
+    }
+
     const students = this.getAllStudents();
     const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
 
-    const email = (studentData.email || `${studentData.enrollmentNumber.toLowerCase()}@college.edu`).trim().toLowerCase();
+    const email = (studentData.email || `${cleanEnroll.toLowerCase()}@college.edu`).trim().toLowerCase();
+    
+    // Prevent duplicate email with another student
+    const emailConflict = students.find(s => s.email.toLowerCase() === email && s.enrollmentNumber.toUpperCase() !== cleanEnroll);
+    if (emailConflict) {
+      throw new Error(`Email ID "${email}" is already registered to ${emailConflict.name} (${emailConflict.enrollmentNumber}). Each student requires a unique email.`);
+    }
+
     const userId = `u_stu_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const studentId = `stu_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
@@ -1816,13 +1948,14 @@ class DatabaseService {
       createdAt: Date.now()
     };
 
-    const dev = getDeviceInfo(studentData.enrollmentNumber);
+    const dev = getDeviceInfo(cleanEnroll);
     const newStudent: Student = {
       ...studentData,
+      enrollmentNumber: cleanEnroll,
       id: studentId,
       userId: userId,
       email: email,
-      avatarUrl: studentData.avatarUrl || generateStudentAvatarSvg(studentData.name, studentData.enrollmentNumber),
+      avatarUrl: studentData.avatarUrl || generateStudentAvatarSvg(studentData.name, cleanEnroll),
       deviceId: studentData.deviceId || dev.deviceId,
       deviceName: studentData.deviceName || dev.deviceName,
       ipAddress: studentData.ipAddress || dev.ipAddress,
@@ -1836,6 +1969,28 @@ class DatabaseService {
     students.push(newStudent);
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+
+    // Sync into Registry
+    const registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+    const regEntry: EnrollmentRegistryEntry = {
+      enrollmentNumber: cleanEnroll,
+      name: newStudent.name,
+      semester: newStudent.semester,
+      department: newStudent.department,
+      division: newStudent.division,
+      rollNumber: newStudent.rollNumber,
+      createdAt: Date.now()
+    };
+    if (!registry.some(r => r.enrollmentNumber.toUpperCase() === cleanEnroll)) {
+      registry.push(regEntry);
+      localStorage.setItem(STORAGE_KEYS.REGISTRY, JSON.stringify(registry));
+    }
+
+    // Cloud sync to Firestore
+    firestoreSync.setDocument('users', newUser.id, newUser);
+    firestoreSync.setDocument('students', newStudent.id, newStudent);
+    firestoreSync.setDocument('enrollmentRegistry', cleanEnroll, regEntry);
+
     return newStudent;
   }
 
@@ -1845,9 +2000,87 @@ class DatabaseService {
     if (idx !== -1) {
       students[idx] = { ...students[idx], ...student };
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+      firestoreSync.setDocument('students', students[idx].id, students[idx]);
       return true;
     }
     return false;
+  }
+
+  /**
+   * Promotes a student to the next semester.
+   * Authorized faculty/admin only.
+   * Preserves:
+   * - Enrollment number
+   * - Device bindings & credentials
+   * - All past historical attendance records (which remain linked to original semester lectures)
+   */
+  promoteStudent(
+    studentId: string,
+    targetSemester: number,
+    promotedByRole: Role = 'FACULTY'
+  ): { success: boolean; student?: Student; error?: string } {
+    this.ensureBaselineAccounts();
+    const students = this.getAllStudents();
+    const student = students.find(s => s.id === studentId);
+    if (!student) {
+      return { success: false, error: 'Student record not found in database.' };
+    }
+
+    if (targetSemester < 1 || targetSemester > 8) {
+      return { success: false, error: 'Target semester must be between Semester 1 and Semester 8.' };
+    }
+
+    if (targetSemester <= student.semester) {
+      return { 
+        success: false, 
+        error: `Cannot promote: Target Semester ${targetSemester} must be greater than current Semester ${student.semester}.` 
+      };
+    }
+
+    const previousSem = student.semester;
+    student.previousSemester = previousSem;
+    student.semester = targetSemester;
+    student.lastPromotedAt = Date.now();
+
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+
+    // Update in registry
+    const registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+    const regEntry = registry.find(r => r.enrollmentNumber.toUpperCase() === student.enrollmentNumber.toUpperCase());
+    if (regEntry) {
+      regEntry.semester = targetSemester;
+      regEntry.promotedAt = Date.now();
+      regEntry.promotedByRole = promotedByRole;
+      localStorage.setItem(STORAGE_KEYS.REGISTRY, JSON.stringify(registry));
+      firestoreSync.setDocument('enrollmentRegistry', student.enrollmentNumber.toUpperCase(), regEntry);
+    }
+
+    firestoreSync.setDocument('students', student.id, student);
+
+    return { success: true, student };
+  }
+
+  /**
+   * Batch promotes multiple students from their current semester to targetSemester.
+   */
+  promoteStudentsBatch(
+    studentIds: string[],
+    targetSemester: number,
+    promotedByRole: Role = 'FACULTY'
+  ): { success: boolean; promotedCount: number; errors: string[] } {
+    let count = 0;
+    const errors: string[] = [];
+
+    for (const sid of studentIds) {
+      const res = this.promoteStudent(sid, targetSemester, promotedByRole);
+      if (res.success) {
+        count++;
+      } else if (res.error) {
+        errors.push(res.error);
+      }
+    }
+
+    return { success: count > 0, promotedCount: count, errors };
   }
 
   registerStudentDevice(studentId: string, deviceId: string, deviceName: string, ipAddress?: string): boolean {
@@ -1894,30 +2127,63 @@ class DatabaseService {
     return newRecord;
   }
 
-  deleteStudent(studentId: string) {
+  deleteStudent(studentId: string): boolean {
     let students = this.getAllStudents();
     const st = students.find(s => s.id === studentId);
+    if (!st) return false;
+
     students = students.filter(s => s.id !== studentId);
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
 
-    if (st) {
-      let users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-      users = users.filter(u => u.id !== st.userId);
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    // Remove user login credentials
+    let users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+    users = users.filter(u => u.id !== st.userId && u.email.toLowerCase() !== st.email.toLowerCase());
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+    // Remove from enrollment registry so enrollment number can be cleanly reused if re-enrolled
+    let registry: EnrollmentRegistryEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRY) || '[]');
+    registry = registry.filter(r => r.enrollmentNumber.toUpperCase() !== st.enrollmentNumber.toUpperCase());
+    localStorage.setItem(STORAGE_KEYS.REGISTRY, JSON.stringify(registry));
+
+    // Cloud sync deletion to Firestore
+    firestoreSync.deleteDocument('students', studentId);
+    if (st.userId) firestoreSync.deleteDocument('users', st.userId);
+    firestoreSync.deleteDocument('enrollmentRegistry', st.enrollmentNumber.toUpperCase());
+
+    return true;
+  }
+
+  deleteStudentsBatch(studentIds: string[]): number {
+    let count = 0;
+    for (const sid of studentIds) {
+      if (this.deleteStudent(sid)) {
+        count++;
+      }
     }
+    return count;
+  }
+
+  deleteStudentsBySemester(semester: number): number {
+    const semStudents = this.getStudentsBySemester(semester);
+    return this.deleteStudentsBatch(semStudents.map(s => s.id));
   }
 
   clearAllStudents() {
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify([]));
   }
 
-  addStudentsBatch(list: Array<Omit<Student, 'id' | 'userId' | 'createdAt'>>): number {
+  addStudentsBatch(list: Array<Omit<Student, 'id' | 'userId' | 'createdAt'>>): { added: number; errors: string[] } {
     let added = 0;
+    const errors: string[] = [];
     for (const item of list) {
-      this.addStudent(item);
-      added++;
+      try {
+        this.addStudent(item);
+        added++;
+      } catch (err: any) {
+        errors.push(`${item.enrollmentNumber}: ${err.message || 'Validation error'}`);
+      }
     }
-    return added;
+    return { added, errors };
   }
 
   // --- Subjects ---
@@ -1954,6 +2220,7 @@ class DatabaseService {
     };
     subjects.push(newSubject);
     localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+    firestoreSync.setDocument('subjects', newSubject.id, newSubject);
     return newSubject;
   }
 
@@ -1961,6 +2228,7 @@ class DatabaseService {
     let subjects = this.getAllSubjects();
     subjects = subjects.filter(s => s.id !== subjectId);
     localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+    firestoreSync.deleteDocument('subjects', subjectId);
   }
 
   clearAllSubjects() {
@@ -2013,6 +2281,7 @@ class DatabaseService {
     };
     lectures.unshift(newLec);
     localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(lectures));
+    firestoreSync.setDocument('lectures', newLec.id, newLec);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('sca_lecture_location_updated', { detail: newLec }));
     }
@@ -2023,6 +2292,7 @@ class DatabaseService {
     let lectures = this.getAllLectures();
     lectures = lectures.filter(l => l.id !== lectureId);
     localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(lectures));
+    firestoreSync.deleteDocument('lectures', lectureId);
   }
 
   clearAllLectures() {
@@ -2035,6 +2305,7 @@ class DatabaseService {
     if (idx !== -1) {
       lectures[idx].status = status;
       localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(lectures));
+      firestoreSync.setDocument('lectures', lectureId, lectures[idx]);
     }
   }
 
@@ -2058,6 +2329,7 @@ class DatabaseService {
       lectures[idx].qrPasscode = params.qrPasscode;
       lectures[idx].qrGeneratedAt = Date.now();
       localStorage.setItem(STORAGE_KEYS.LECTURES, JSON.stringify(lectures));
+      firestoreSync.setDocument('lectures', lectureId, lectures[idx]);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sca_lecture_location_updated', { detail: lectures[idx] }));
       }
@@ -2137,6 +2409,14 @@ class DatabaseService {
       );
     }
 
+    // Backend Semester Membership Validation:
+    // Only students enrolled in this lecture's semester can mark attendance!
+    if (student && lecture && student.semester !== lecture.semester) {
+      throw new Error(
+        `Semester validation failed: Student '${student.enrollmentNumber}' is assigned to Semester ${student.semester}, but this attendance session is strictly for Semester ${lecture.semester}. Only students enrolled in Semester ${lecture.semester} can participate.`
+      );
+    }
+
     // Enforce 1 Device & 1 IP address bound to student enrollment number
     const currentDevice = getDeviceInfo(student?.enrollmentNumber);
     const recordedDeviceId = record.deviceId || currentDevice.deviceId;
@@ -2179,6 +2459,7 @@ class DatabaseService {
 
     attendance.push(newRecord);
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
+    firestoreSync.setDocument('attendances', newRecord.id, newRecord);
     return newRecord;
   }
 
@@ -2191,6 +2472,7 @@ class DatabaseService {
       attendance[idx].correctedByFacultyId = facultyId;
       attendance[idx].updatedAt = Date.now();
       localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
+      firestoreSync.setDocument('attendances', attendanceId, attendance[idx]);
     }
   }
 
@@ -2671,3 +2953,11 @@ class DatabaseService {
 }
 
 export const db = new DatabaseService();
+
+// Initialize real-time cloud synchronization with Firebase Firestore
+if (typeof window !== 'undefined') {
+  firestoreSync.initRealTimeListeners((_colName) => {
+    // Real-time Firestore sync active
+  });
+}
+

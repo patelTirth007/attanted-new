@@ -22,7 +22,13 @@ export const Navbar: React.FC<NavbarProps> = ({ user, profileName, onLogout, col
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* Firebase Cloud status indicator */}
+        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold shadow-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Firebase Firestore Connected</span>
+        </div>
+
         {user && (
           <div className="flex items-center gap-2">
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${

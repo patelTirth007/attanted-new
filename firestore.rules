@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Test connection probe
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidId(userId) &&
+        incoming().email is string && incoming().email.size() <= 100;
+      allow delete: if isValidId(userId);
+    }
+
+    // Students collection
+    match /students/{studentId} {
+      allow read: if true;
+      allow create, update: if isValidId(studentId) &&
+        incoming().name is string && incoming().name.size() <= 100 &&
+        incoming().email is string && incoming().email.size() <= 100 &&
+        incoming().enrollmentNumber is string && incoming().enrollmentNumber.size() <= 30 &&
+        incoming().semester is number && incoming().semester >= 1 && incoming().semester <= 8;
+      allow delete: if isValidId(studentId);
+    }
+
+    // Faculty collection
+    match /faculty/{facultyId} {
+      allow read: if true;
+      allow create, update: if isValidId(facultyId) &&
+        incoming().name is string && incoming().name.size() <= 100 &&
+        incoming().email is string && incoming().email.size() <= 100;
+      allow delete: if isValidId(facultyId);
+    }
+
+    // Subjects collection
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create, update: if isValidId(subjectId) &&
+        incoming().subjectName is string && incoming().subjectName.size() <= 100 &&
+        incoming().subjectCode is string && incoming().subjectCode.size() <= 30 &&
+        incoming().semester is number && incoming().semester >= 1 && incoming().semester <= 8;
+      allow delete: if isValidId(subjectId);
+    }
+
+    // Lectures collection
+    match /lectures/{lectureId} {
+      allow read: if true;
+      allow create, update: if isValidId(lectureId) &&
+        incoming().subjectName is string && incoming().subjectName.size() <= 100 &&
+        incoming().semester is number && incoming().semester >= 1 && incoming().semester <= 8 &&
+        incoming().division is string && incoming().division.size() <= 10;
+      allow delete: if isValidId(lectureId);
+    }
+
+    // Attendance records
+    match /attendances/{attendanceId} {
+      allow read: if true;
+      allow create, update: if isValidId(attendanceId) &&
+        incoming().lectureId is string && incoming().lectureId.size() <= 128 &&
+        incoming().studentId is string && incoming().studentId.size() <= 128 &&
+        incoming().studentEmail is string && incoming().studentEmail.size() <= 100 &&
+        incoming().enrollmentNumber is string && incoming().enrollmentNumber.size() <= 30;
+      allow delete: if isValidId(attendanceId);
+    }
+
+    // College settings
+    match /collegeSettings/{settingId} {
+      allow read: if true;
+      allow create, update: if isValidId(settingId) &&
+        incoming().latitude is number &&
+        incoming().longitude is number &&
+        incoming().allowedRadiusMeters is number;
+      allow delete: if false;
+    }
+
+    // Enrollment registry master
+    match /enrollmentRegistry/{recordId} {
+      allow read: if true;
+      allow create, update: if isValidId(recordId) &&
+        incoming().enrollmentNumber is string && incoming().enrollmentNumber.size() <= 30 &&
+        incoming().semester is number && incoming().semester >= 1 && incoming().semester <= 8;
+      allow delete: if isValidId(recordId);
+    }
+
+    // Gmail notification dispatches
+    match /gmailNotifications/{notificationId} {
+      allow read: if true;
+      allow create, update: if isValidId(notificationId) &&
+        incoming().recipientEmail is string && incoming().recipientEmail.size() <= 100 &&
+        incoming().subject is string && incoming().subject.size() <= 150;
+      allow delete: if false;
+    }
+  }
+}

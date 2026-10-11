@@ -1,6 +1,6 @@
 {
   "name": "Smart College Attendance",
-  "description": "Online College Attendance Management System with Semester-Wise Separate Lecture & Attendance Management, Faculty 100-meter dynamic QR code generator, student QR scanner with GPS handheld proximity verification, single email ID verification per subject, and automated Gmail notifications.",
+  "description": "Online College Attendance Management System powered by Firebase Firestore Cloud Database with Semester-Wise Separate Lecture & Attendance Management, Faculty 100-meter dynamic QR code generator, student QR scanner with GPS handheld proximity verification, single email ID verification per subject, and automated Gmail notifications.",
   "requestFramePermissions": [
     "geolocation",
     "camera"

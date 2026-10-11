@@ -272,10 +272,14 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({
     );
   };
 
-  // Check whether all three conditions are satisfied
+  // Check semester validity
+  const isSemesterValid = student.semester === currentLecture.semester;
+
+  // Check whether all three conditions + semester validity are satisfied
   const isSessionActive = currentLecture.status === 'ACTIVE';
   const allConditionsFulfilled = Boolean(
     isSessionActive &&
+    isSemesterValid &&
     isLocationValid &&
     locationDistance <= allowedRadius &&
     isCodeValid &&
@@ -288,7 +292,16 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({
    * Confirm Attendance Submission
    */
   const handleConfirmAttendance = () => {
-    // Check session status first
+    // Check semester membership first
+    if (!isSemesterValid) {
+      setUnsuccessfulReason(
+        `Semester Membership Error: You are enrolled in Semester ${student.semester}, but this attendance session is strictly for Semester ${currentLecture.semester} (${currentLecture.subjectName}). Only Semester ${currentLecture.semester} students can mark attendance for this lecture.`
+      );
+      setShowUnsuccessfulModal(true);
+      return;
+    }
+
+    // Check session status
     if (!isSessionActive) {
       setUnsuccessfulReason('Faculty Attendance Session Not Active: The faculty has not started or has closed this attendance session.');
       setShowUnsuccessfulModal(true);
@@ -419,6 +432,19 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Semester Mismatch Warning Banner */}
+      {!isSemesterValid && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl text-xs space-y-2 shadow-sm">
+          <div className="flex items-center gap-2 text-amber-950 font-black text-sm">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>Semester Enrollment Mismatch — Attendance Prohibited</span>
+          </div>
+          <p className="text-amber-900 text-xs leading-relaxed">
+            You are currently registered in <strong>Semester {student.semester}</strong>. This lecture belongs to <strong>Semester {currentLecture.semester}</strong> ({currentLecture.subjectName}). Under college regulations, students can only mark attendance for sessions belonging to their assigned semester.
+          </p>
+        </div>
+      )}
 
       {/* Inactive Session Warning Banner */}
       {!isSessionActive && (

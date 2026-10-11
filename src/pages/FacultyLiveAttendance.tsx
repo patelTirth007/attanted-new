@@ -64,10 +64,12 @@ export const FacultyLiveAttendance: React.FC<FacultyLiveAttendanceProps> = ({
     return () => clearInterval(interval);
   }, [lecture.id]);
 
-  const matchedStudents = students.filter(
-    s => s.semester === currentLecture.semester && s.division.toUpperCase() === currentLecture.division.toUpperCase()
+  // Strictly filter students to the lecture's semester - never leak other semesters
+  const semesterStudents = students.filter(s => s.semester === currentLecture.semester);
+  const matchedStudents = semesterStudents.filter(
+    s => s.division.toUpperCase() === currentLecture.division.toUpperCase()
   );
-  const eligibleStudents = matchedStudents.length > 0 ? matchedStudents : students;
+  const eligibleStudents = matchedStudents.length > 0 ? matchedStudents : semesterStudents;
 
   const totalStudents = eligibleStudents.length || (students.length > 0 ? students.length : 1);
   const presentCount = attendance.filter(a => a.status === 'PRESENT').length;

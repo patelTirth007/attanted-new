@@ -25,7 +25,7 @@ interface FacultyDashboardProps {
   faculty: Faculty;
   onCreateLecture: () => void;
   onOpenLiveAttendance: (lecture: Lecture) => void;
-  onNavigateToStudents: () => void;
+  onNavigateToStudents?: () => void;
   onNavigateToReports: () => void;
   onNavigateToSettings: () => void;
 }
@@ -34,7 +34,6 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
   faculty,
   onCreateLecture,
   onOpenLiveAttendance,
-  onNavigateToStudents,
   onNavigateToReports,
   onNavigateToSettings
 }) => {
@@ -285,11 +284,8 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
 
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Students */}
-        <div
-          onClick={onNavigateToStudents}
-          className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 cursor-pointer transition"
-        >
+        {/* Total Students (Metric only, no roster view) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>
               {selectedSemester === 'ALL' ? 'Total Enrolled' : `Sem ${selectedSemester} Students`}
@@ -298,7 +294,7 @@ export const FacultyDashboard: React.FC<FacultyDashboardProps> = ({
           </div>
           <div className="text-3xl font-black text-slate-900 mt-2">{semesterStudents.length}</div>
           <p className="text-[11px] text-emerald-600 font-medium mt-1">
-            {selectedSemester === 'ALL' ? 'All Semester Batches' : `Semester ${selectedSemester} Roster`}
+            {selectedSemester === 'ALL' ? 'All Semester Batches' : `Semester ${selectedSemester} Enrolled`}
           </p>
         </div>
 

@@ -557,13 +557,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                             ✓ Verified Active
                           </span>
                         ) : isReady ? (
-                          <button
-                            onClick={() => onNavigateToMarkAttendance(lec)}
-                            className="px-3 py-1.5 font-bold rounded-lg text-xs transition shadow-sm bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-1.5 ml-auto"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                            FILL ATTENDANCE
-                          </button>
+                          lec.semester === student.semester ? (
+                            <button
+                              onClick={() => onNavigateToMarkAttendance(lec)}
+                              className="px-3 py-1.5 font-bold rounded-lg text-xs transition shadow-sm bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-1.5 ml-auto"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              FILL ATTENDANCE
+                            </button>
+                          ) : (
+                            <span 
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"
+                              title={`Attendance restricted: You are registered in Semester ${student.semester}`}
+                            >
+                              Sem {lec.semester} Only
+                            </span>
+                          )
                         ) : (
                           <span className="text-slate-400 font-medium">SESSION CLOSED</span>
                         )}

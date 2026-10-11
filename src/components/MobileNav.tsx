@@ -32,7 +32,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ role, currentRoute, onNavi
     { id: '/faculty/attendance', label: 'Live', icon: Radio },
     { id: '/faculty/lectures', label: 'Lectures', icon: Calendar },
     { id: '/faculty/notifications', label: 'Gmail', icon: Mail },
-    { id: '/faculty/students', label: 'Students', icon: Users },
     { id: '/faculty/settings', label: 'Location', icon: MapPin }
   ];
 

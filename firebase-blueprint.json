@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user account for students, faculty, and admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["STUDENT", "FACULTY", "ADMIN"] },
+        "semester": { "type": "number" },
+        "division": { "type": "string", "maxLength": 10 },
+        "enrollmentNo": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student profile assigned strictly to an academic semester (1-8)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "enrollmentNo": { "type": "string", "maxLength": 30 },
+        "semester": { "type": "number" },
+        "division": { "type": "string", "maxLength": 10 },
+        "rollNumber": { "type": "string", "maxLength": 20 },
+        "department": { "type": "string", "maxLength": 80 },
+        "phone": { "type": "string", "maxLength": 25 },
+        "parentEmail": { "type": "string", "maxLength": 100 },
+        "faceDescriptor": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "previousSemester": { "type": "number" },
+        "lastPromotedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "name", "email", "enrollmentNo", "semester", "division"]
+    },
+    "Faculty": {
+      "title": "Faculty",
+      "description": "Faculty member profile managing lectures and attendance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 80 },
+        "designation": { "type": "string", "maxLength": 80 },
+        "secretCode": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "name", "email", "department"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Course curriculum subject mapped to an academic semester",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 30 },
+        "name": { "type": "string", "maxLength": 100 },
+        "semester": { "type": "number" },
+        "department": { "type": "string", "maxLength": 80 },
+        "facultyId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "code", "name", "semester", "department"]
+    },
+    "Lecture": {
+      "title": "Lecture",
+      "description": "Live or scheduled lecture session with 100m QR code generator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "subjectName": { "type": "string", "maxLength": 100 },
+        "facultyId": { "type": "string", "maxLength": 128 },
+        "facultyName": { "type": "string", "maxLength": 100 },
+        "semester": { "type": "number" },
+        "division": { "type": "string", "maxLength": 10 },
+        "classroom": { "type": "string", "maxLength": 50 },
+        "date": { "type": "string", "maxLength": 30 },
+        "startTime": { "type": "string", "maxLength": 30 },
+        "endTime": { "type": "string", "maxLength": 30 },
+        "topic": { "type": "string", "maxLength": 150 },
+        "qrCodeToken": { "type": "string", "maxLength": 100 },
+        "qrGeneratedAt": { "type": "string", "maxLength": 50 },
+        "qrExpiresAt": { "type": "string", "maxLength": 50 },
+        "facultyLat": { "type": "number" },
+        "facultyLng": { "type": "number" },
+        "status": { "type": "string", "enum": ["UPCOMING", "ACTIVE", "COMPLETED", "CANCELLED"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "subjectId", "subjectName", "facultyId", "semester", "division", "date"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Student attendance record with GPS handheld proximity and QR verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "lectureId": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 100 },
+        "studentEmail": { "type": "string", "maxLength": 100 },
+        "enrollmentNo": { "type": "string", "maxLength": 30 },
+        "semester": { "type": "number" },
+        "division": { "type": "string", "maxLength": 10 },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["PRESENT", "ABSENT", "LATE"] },
+        "gpsLat": { "type": "number" },
+        "gpsLng": { "type": "number" },
+        "distanceMeters": { "type": "number" },
+        "verifiedByGps": { "type": "boolean" },
+        "verifiedByFace": { "type": "boolean" },
+        "verifiedByQr": { "type": "boolean" },
+        "subjectId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["id", "lectureId", "studentId", "studentEmail", "enrollmentNo", "semester", "status"]
+    },
+    "CollegeSettings": {
+      "title": "CollegeSettings",
+      "description": "Campus GPS coordinates and allowed geofence perimeter radius",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "collegeName": { "type": "string", "maxLength": 150 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "allowedRadiusMeters": { "type": "number" },
+        "qrRefreshIntervalSeconds": { "type": "number" },
+        "requireFaceVerification": { "type": "boolean" },
+        "requireGpsVerification": { "type": "boolean" },
+        "allowProxyDetection": { "type": "boolean" }
+      },
+      "required": ["id", "latitude", "longitude", "allowedRadiusMeters"]
+    },
+    "EnrollmentRecord": {
+      "title": "EnrollmentRecord",
+      "description": "Institutional registry master of valid enrollment numbers per semester",
+      "type": "object",
+      "properties": {
+        "enrollmentNo": { "type": "string", "maxLength": 30 },
+        "name": { "type": "string", "maxLength": 100 },
+        "semester": { "type": "number" },
+        "division": { "type": "string", "maxLength": 10 },
+        "email": { "type": "string", "maxLength": 100 },
+        "isRegistered": { "type": "boolean" },
+        "registeredStudentId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["enrollmentNo", "name", "semester"]
+    },
+    "GmailNotification": {
+      "title": "GmailNotification",
+      "description": "Automated email notification record dispatched for attendance events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "to": { "type": "string", "maxLength": 100 },
+        "recipientName": { "type": "string", "maxLength": 100 },
+        "subject": { "type": "string", "maxLength": 150 },
+        "body": { "type": "string", "maxLength": 2000 },
+        "sentAt": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["DELIVERED", "PENDING", "FAILED"] }
+      },
+      "required": ["id", "to", "subject", "sentAt", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User account collection for students and faculty"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Enrolled student collection across semesters 1 to 8"
+    },
+    "/faculty/{facultyId}": {
+      "schema": "Faculty",
+      "description": "Faculty profile collection"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Curriculum subjects organized by semester"
+    },
+    "/lectures/{lectureId}": {
+      "schema": "Lecture",
+      "description": "Lectures collection with live status and QR codes"
+    },
+    "/attendances/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Attendance logs verifying single email, GPS and QR codes"
+    },
+    "/collegeSettings/{settingId}": {
+      "schema": "CollegeSettings",
+      "description": "Campus geographic coordinates and radius configurations"
+    },
+    "/enrollmentRegistry/{recordId}": {
+      "schema": "EnrollmentRecord",
+      "description": "Master student enrollment validation registry"
+    },
+    "/gmailNotifications/{notificationId}": {
+      "schema": "GmailNotification",
+      "description": "Dispatched email log tracking student and parent alerts"
+    }
+  }
+}

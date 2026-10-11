@@ -35,7 +35,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, currentRoute, onNavigate
     { id: '/faculty/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: '/faculty/attendance', label: 'Live Attendance', icon: Radio },
     { id: '/faculty/lectures', label: 'Manage Lectures', icon: Calendar },
-    { id: '/faculty/students', label: 'Students Roster', icon: Users },
     { id: '/faculty/subjects', label: 'Subjects', icon: BookOpen },
     { id: '/faculty/reports', label: 'Attendance History & Reports', icon: FileSpreadsheet },
     { id: '/faculty/notifications', label: 'Gmail Notifications', icon: Mail },
